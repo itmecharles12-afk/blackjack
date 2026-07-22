@@ -11,8 +11,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// URL de connexion MongoDB Atlas
-const uri = process.env.MONGODB_URI || "mongodb+srv://itmecharles12_db_user:1234@cluster0.pwqnag6.mongodb.net/blackjackDB?retryWrites=true&w=majority";
+// URL de connexion MongoDB Atlas (MISE À JOUR AVEC LE NOUVEAU MOT DE PASSE)
+const uri = process.env.MONGODB_URI || "mongodb+srv://itmecharles12_db_user:MotDePasse123@cluster0.pwqnag6.mongodb.net/blackjackDB?retryWrites=true&w=majority";
 
 // Connexion Mongoose / MongoDB
 async function connectDB() {
@@ -48,7 +48,7 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', messageSchema);
 
-// --- Routes Application (Exemples de base pour que le jeu fonctionne) ---
+// --- Routes Application ---
 app.post('/api/auth', async (req, res) => {
     try {
         const { user, mdp } = req.body;
@@ -138,7 +138,7 @@ app.post('/api/admin/create-promo', (req, res) => {
     res.json({ success: true });
 });
 
-// --- NOUVELLES ROUTES : Gestion des messages / problèmes ---
+// --- Gestion des messages / problèmes ---
 app.post('/api/messages', async (req, res) => {
     try {
         const { pseudo, message } = req.body;
@@ -157,7 +157,6 @@ app.post('/api/messages', async (req, res) => {
 
 app.get('/api/messages', async (req, res) => {
     try {
-        // Récupère les messages du plus récent au plus ancien
         const messages = await Message.find().sort({ date: -1 });
         res.json(messages);
     } catch (e) {
