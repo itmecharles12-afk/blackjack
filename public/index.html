@@ -3,551 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blackjack Classic</title>
+    <title>BlackJack</title>
     <style>
         body {
-            background-color: #0d0d0d;
-            color: #f0f0f0;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            background-color: #1b1b1b;
+            color: white;
+            text-align: center;
             margin: 0;
+            padding: 50px;
         }
-        .container {
-            text-align: center;
-            max-width: 650px;
-            width: 90%;
-            padding: 30px;
-            background: #161616;
-            border: 1px solid #333;
-            border-radius: 4px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        /* Style du mode Rénovation / Maintenance */
+        #maintenance-banner {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            color: #ff4757;
         }
-        h2 { letter-spacing: 2px; margin-bottom: 20px; color: #fff; }
-        button {
-            background: #222;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 8px 15px;
-            margin: 5px;
-            cursor: pointer;
-            font-family: monospace;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        button:hover { background: #444; border-color: #888; }
-        input {
-            background: #111;
-            border: 1px solid #444;
-            color: #fff;
-            padding: 8px;
-            font-family: monospace;
-            margin: 5px;
-            text-align: center;
-        }
-        .cards-display {
-            font-size: 1.8em;
-            letter-spacing: 8px;
-            margin: 15px 0;
-            background: #0a0a0a;
-            padding: 15px;
-            border: 1px dashed #333;
-        }
-        
-        .tokyo-icon-corner {
+        /* Bouton de support */
+        #support-btn {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 45px;
-            height: 45px;
-            background: #000;
-            border: 2px solid #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: #2ed573;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
             cursor: pointer;
-            box-shadow: 0 0 10px rgba(255,255,255,0.2);
-            z-index: 999;
-            image-rendering: pixelated;
+            font-weight: bold;
         }
-        .tokyo-icon-corner.active {
-            border-color: #ff3333;
-            animation: spinRotate 1.2s infinite linear, glowPulse 0.8s infinite alternate;
-        }
-        .pixel-symbol { font-size: 20px; color: #fff; font-weight: bold; }
-        .tokyo-icon-corner.active .pixel-symbol { color: #ff3333; }
-
-        @keyframes spinRotate {
-            0% { transform: rotate(0deg) scale(1); }
-            50% { transform: rotate(180deg) scale(1.1); }
-            100% { transform: rotate(360deg) scale(1); }
-        }
-        @keyframes glowPulse {
-            from { box-shadow: 0 0 5px #ff3333; }
-            to { box-shadow: 0 0 20px #ff3333; }
-        }
-
-        .broadcast-modal {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.85);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-        .broadcast-content {
-            background: #111;
-            border: 2px solid #fff;
-            padding: 30px;
-            max-width: 450px;
-            width: 80%;
-            text-align: center;
-            box-shadow: 0 0 25px rgba(255,255,255,0.1);
-        }
-        .broadcast-content h3 { color: #ff3333; margin-top: 0; letter-spacing: 3px; }
-
-        .section-box {
+        .box {
+            background: #2f3542;
+            padding: 20px;
+            border-radius: 8px;
+            display: inline-block;
             margin-top: 20px;
-            border-top: 1px dashed #333;
-            padding-top: 15px;
-            text-align: center;
         }
-        
-        .user-list-box {
-            max-height: 160px;
-            overflow-y: auto;
-            border: 1px solid #333;
-            background: #0f0f0f;
-            margin-top: 10px;
-            text-align: left;
-            padding: 5px;
+        input, button {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            border: none;
         }
-        .user-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px;
-            border-bottom: 1px solid #222;
-            font-size: 0.85em;
+        button {
+            background: #1e90ff;
+            color: white;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <h2>BLACKJACK</h2>
-
-        <!-- CONNEXION -->
-        <div id="authScreen">
-            <p style="color: #888; font-size: 0.9em;">Connecte-toi (Utilise <b>charles</b> pour l'admin)</p>
-            <input type="text" id="username" placeholder="Nom d'utilisateur"><br>
-            <input type="password" id="password" placeholder="Mot de passe"><br>
-            <button onclick="seConnecter()">Connexion / Inscription</button>
-            <p id="authError" style="color: #ff4444; font-size: 0.85em;"></p>
-        </div>
-
-        <!-- JEU -->
-        <div id="gameScreen" style="display:none;">
-            <p style="font-size: 0.9em; color: #aaa;">Joueur : <b id="displayUser" style="color:#fff;"></b> | Jetons : <span id="jetons" style="color:#00ffcc;">500</span> <button onclick="deconnexion()" style="font-size:0.6em; padding:3px 6px; margin-left:10px;">Sortir</button></p>
-
-            <div style="margin: 15px 0;">
-                <label>Mise : </label>
-                <input type="number" id="miseInput" value="50" min="1" style="width: 90px;">
-                <button onclick="lancerPartie()">Distribuer</button>
-            </div>
-
-            <div id="gameArea" style="display:none;">
-                <p style="margin:5px 0; color:#888;">Banque (Découverte : <span id="scoreBanque">0</span>)</p>
-                <div class="cards-display" id="cartesBanque">-</div>
-
-                <p style="margin:5px 0; color:#888;">Vos cartes (Total : <span id="scoreJoueur" style="color:#00ffcc;">0</span>)</p>
-                <div class="cards-display" id="cartesJoueur">-</div>
-
-                <div id="actionButtons">
-                    <button onclick="tirerCarte()">Carte (+)</button>
-                    <button onclick="tenirPartie()">Rester</button>
-                </div>
-            </div>
-
-            <div id="messageResultat" style="color: #ffcc00; margin: 15px 0; font-weight: bold;"></div>
-
-            <!-- CODE PROMO -->
-            <div class="section-box">
-                <input type="text" id="promoInput" placeholder="Code promo" style="width: 140px;">
-                <button onclick="appliquerPromo()" style="background:#003366; border-color:#0066cc;">Appliquer</button>
-                <p id="promoMsg" style="font-size:0.8em; margin:5px 0;"></p>
-            </div>
-
-            <!-- PANEL ADMIN -->
-            <div id="adminPanel" class="section-box" style="text-align: left; display:none;">
-                <h4 style="color: #00ffcc; margin:0 0 10px 0;">Panel Administrateur ⚙️</h4>
-                
-                <p style="font-size:0.85em; margin:5px 0; color:#aaa;">Diffusion Tokyo Drift :</p>
-                <input type="text" id="broadcastText" placeholder="Message global..." style="width:72%;">
-                <button onclick="envoyerBroadcast()" style="background:#004444; border-color:#008888;">Diffuser</button>
-                <button onclick="effacerBroadcast()" style="background:#440000; border-color:#880000;">Couper</button>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
-                    <p style="font-size:0.85em; color:#aaa; margin:0;">Utilisateurs connectés (Sync auto) :</p>
-                    <button onclick="chargerListeUtilisateursAdmin()" style="font-size:0.75em; background:#222; padding:3px 8px;">🔄 Forcer</button>
-                </div>
-                
-                <input type="text" id="searchUserBox" placeholder="Filtrer un pseudo..." onkeyup="filtrerUtilisateurs()" style="width: 95%; margin-top:5px;">
-                
-                <div class="user-list-box" id="userListContainer"></div>
-
-                <h4 style="color: #00ffcc; margin:15px 0 5px 0;">Créer un Code Promo 🎟️</h4>
-                <input type="text" id="newPromoCode" placeholder="Nom du code" style="width: 45%;">
-                <input type="number" id="newPromoGain" placeholder="Jetons" style="width: 30%;">
-                <button onclick="creerPromoAdmin()" style="background:#330033; border-color:#880088;">Créer</button>
-                <p id="adminPromoMsg" style="font-size:0.75em; color:#00ffcc; margin:3px 0;"></p>
-            </div>
-        </div>
+    <!-- Bandeau de Rénovation -->
+    <div id="maintenance-banner">
+        <h1>🚧 Site en Rénovation 🚧</h1>
+        <p>Le site sera de retour très bientôt avec de superbes modifications ! Revenez plus tard.</p>
     </div>
 
-    <!-- ICÔNE PIXELISÉE -->
-    <div class="tokyo-icon-corner" id="tokyoIcon" onclick="ouvrirMessageGlobal()" title="Nouveau message système">
-        <div class="pixel-symbol">✉</div>
+    <h1>Mon Jeu de BlackJack</h1>
+    
+    <div class="box">
+        <h3>Codes Promo Sécurisés</h3>
+        <input type="text" id="promo-input" placeholder="Entre ton code...">
+        <button onclick="applyPromo()">Appliquer</button>
+        <p id="promo-msg"></p>
     </div>
 
-    <!-- MODALE MESSAGE -->
-    <div class="broadcast-modal" id="broadcastModal">
-        <div class="broadcast-content">
-            <h3>TRANSMISSION ENTRANTE</h3>
-            <p id="broadcastMessageBody" style="font-size: 1.1em; line-height: 1.5; margin: 20px 0;"></p>
-            <button onclick="fermerMessageGlobal()" style="width: 100%;">Fermer le terminal</button>
-        </div>
-    </div>
+    <!-- Bouton de contact en cas de problème -->
+    <button id="support-btn" onclick="openSupport()">⚠️ Problème / Contact</button>
 
     <script>
-        let currentUser = null;
-        let currentJetons = 500;
-        let isAdmin = false;
-        let dernierMessageIdLu = 0;
-
-        setInterval(verifierMessagesGlobaux, 2000);
-        setInterval(verifierMonSolde, 2000);
-
-        async function verifierMonSolde() {
-            if (!currentUser) return;
+        // Vérification de l'état du site (Maintenance)
+        async function checkStatus() {
             try {
-                let res = await fetch('/api/user-info', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user: currentUser })
-                });
-                let data = await res.json();
-                if (data.success) {
-                    currentJetons = data.jetons;
-                    document.getElementById("jetons").innerText = currentJetons;
-                }
-            } catch(e) {}
-        }
-
-        async function verifierMessagesGlobaux() {
-            try {
-                let res = await fetch('/api/message');
-                let data = await res.json();
-                let icon = document.getElementById("tokyoIcon");
-
-                if (data.actif) {
-                    window.currentBroadcastText = `[De : ${data.auteur}]<br><br>"${data.texte}"`;
-                    if (data.id !== dernierMessageIdLu) {
-                        icon.classList.add("active");
-                    } else {
-                        icon.classList.remove("active");
-                    }
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                if (data.maintenance) {
+                    document.getElementById('maintenance-banner').style.display = 'flex';
                 } else {
-                    icon.classList.remove("active");
-                    window.currentBroadcastText = "";
-                    dernierMessageIdLu = 0;
+                    document.getElementById('maintenance-banner').style.display = 'none';
                 }
-            } catch (e) {}
-        }
-
-        async function ouvrirMessageGlobal() {
-            if (window.currentBroadcastText) {
-                document.getElementById("broadcastMessageBody").innerHTML = window.currentBroadcastText;
-                document.getElementById("broadcastModal").style.display = "flex";
-                let res = await fetch('/api/message');
-                let data = await res.json();
-                dernierMessageIdLu = data.id;
-                document.getElementById("tokyoIcon").classList.remove("active");
-            } else {
-                alert("Aucun signal distant pour le moment.");
+            } catch (e) {
+                console.error("Erreur de vérification du serveur");
             }
         }
 
-        function fermerMessageGlobal() {
-            document.getElementById("broadcastModal").style.display = "none";
-        }
+        // Vérifier l'état toutes les 5 secondes
+        setInterval(checkStatus, 5000);
+        checkStatus();
 
-        async function seConnecter() {
-            let user = document.getElementById("username").value;
-            let mdp = document.getElementById("password").value;
-
-            let res = await fetch('/api/auth', {
+        // Appliquer un code promo
+        async function applyPromo() {
+            const code = document.getElementById('promo-input').value.trim();
+            const res = await fetch('/api/use-promo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user, mdp })
+                body: JSON.stringify({ code })
             });
-            let data = await res.json();
-
-            if (data.success) {
-                currentUser = data.user;
-                currentJetons = data.jetons;
-                isAdmin = data.admin;
-
-                document.getElementById("authScreen").style.display = "none";
-                document.getElementById("gameScreen").style.display = "block";
-                document.getElementById("displayUser").innerText = currentUser;
-                document.getElementById("jetons").innerText = currentJetons;
-
-                if (isAdmin) {
-                    document.getElementById("adminPanel").style.display = "block";
-                    chargerListeUtilisateursAdmin();
-                    setInterval(chargerListeUtilisateursAdmin, 3000);
-                }
-            } else {
-                document.getElementById("authError").innerText = data.error;
-            }
+            const data = await res.json();
+            document.getElementById('promo-msg').innerText = data.message;
+            document.getElementById('promo-msg').style.color = data.success ? '#2ed573' : '#ff4757';
         }
 
-        function deconnexion() {
-            location.reload();
-        }
-
-        async function syncJetons() {
-            await fetch('/api/update-jetons', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user: currentUser, jetons: currentJetons })
-            });
-        }
-
-        async function appliquerPromo() {
-            let code = document.getElementById("promoInput").value;
-            let res = await fetch('/api/promo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user: currentUser, code })
-            });
-            let data = await res.json();
-            let msgEl = document.getElementById("promoMsg");
-            if (data.success) {
-                currentJetons = data.jetons;
-                document.getElementById("jetons").innerText = currentJetons;
-                msgEl.style.color = "#00ffcc";
-                msgEl.innerText = `Succès ! +${data.gain} jetons ajoutés.`;
-            } else {
-                msgEl.style.color = "#ff4444";
-                msgEl.innerText = data.error;
-            }
-            document.getElementById("promoInput").value = "";
-        }
-
-        async function chargerListeUtilisateursAdmin() {
-            try {
-                let res = await fetch('/api/admin/users');
-                let usersObj = await res.json();
-                let container = document.getElementById("userListContainer");
-                
-                let activeInput = document.activeElement;
-                let activeId = activeInput ? activeInput.id : null;
-
-                container.innerHTML = "";
-
-                for (let u in usersObj) {
-                    let inputId = `admin_points_${u}`;
-                    let val = (activeId === inputId) ? activeInput.value : usersObj[u].jetons;
-
-                    let html = `
-                        <div class="user-row" data-username="${u}">
-                            <span><b>${u}</b> ${usersObj[u].admin ? '(Admin)' : ''}</span>
-                            <div>
-                                <input type="number" id="${inputId}" value="${val}" style="width:70px; padding:3px;">
-                                <button onclick="modifierJetonsUser('${u}')" style="padding:2px 6px; font-size:0.75em; background:#004400;">Modifier</button>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML += html;
-                }
-                filtrerUtilisateurs();
-            } catch(e) {}
-        }
-
-        function filtrerUtilisateurs() {
-            let filtre = document.getElementById("searchUserBox").value.toLowerCase();
-            let lignes = document.querySelectorAll(".user-row");
-
-            lignes.forEach(ligne => {
-                let pseudo = ligne.getAttribute("data-username");
-                if (pseudo.includes(filtre)) {
-                    ligne.style.display = "flex";
-                } else {
-                    ligne.style.display = "none";
-                }
-            });
-        }
-
-        async function modifierJetonsUser(targetUser) {
-            let inputVal = document.getElementById(`admin_points_${targetUser}`).value;
-            let res = await fetch('/api/admin/set-jetons', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetUser, jetons: inputVal })
-            });
-            let data = await res.json();
-            if (data.success) {
-                if (targetUser === currentUser) {
-                    currentJetons = data.jetons;
-                    document.getElementById("jetons").innerText = currentJetons;
-                }
-                chargerListeUtilisateursAdmin();
-            } else {
-                alert("Erreur.");
-            }
-        }
-
-        let mise = 0;
-        let mainJoueur = [];
-        let mainBanque = [];
-        let partieEnCours = false;
-
-        function piocherCarte() {
-            const valeurs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10];
-            return valeurs[Math.floor(Math.random() * valeurs.length)];
-        }
-
-        function lancerPartie() {
-            mise = parseInt(document.getElementById("miseInput").value);
-            if (isNaN(mise) || mise <= 0 || mise > currentJetons) {
-                alert("Mise invalide ou solde insuffisant !");
-                return;
-            }
-
-            currentJetons -= mise;
-            syncJetons();
-
-            mainJoueur = [piocherCarte(), piocherCarte()];
-            mainBanque = [piocherCarte(), piocherCarte()];
-            partieEnCours = true;
-
-            document.getElementById("messageResultat").innerText = "";
-            document.getElementById("gameArea").style.display = "block";
-            document.getElementById("actionButtons").style.display = "block";
-
-            actualiserPlateau(false);
-        }
-
-        function calculerScore(main) {
-            return main.reduce((a, b) => a + b, 0);
-        }
-
-        function actualiserPlateau(finDeManche) {
-            document.getElementById("cartesJoueur").innerText = mainJoueur.join(" ");
-            let scoreJ = calculerScore(mainJoueur);
-            document.getElementById("scoreJoueur").innerText = scoreJ;
-
-            if (finDeManche) {
-                document.getElementById("cartesBanque").innerText = mainBanque.join(" ");
-                document.getElementById("scoreBanque").innerText = calculerScore(mainBanque);
-            } else {
-                document.getElementById("cartesBanque").innerText = mainBanque[0] + " ?";
-                document.getElementById("scoreBanque").innerText = mainBanque[0];
-            }
-
-            if (scoreJ > 21) {
-                finDePartie("Dépassement de 21 ! Perdu.");
-            }
-        }
-
-        function tirerCarte() {
-            if (!partieEnCours) return;
-            mainJoueur.push(piocherCarte());
-            actualiserPlateau(false);
-        }
-
-        function tenirPartie() {
-            if (!partieEnCours) return;
-
-            let scoreB = calculerScore(mainBanque);
-            while (scoreB < 17) {
-                mainBanque.push(piocherCarte());
-                scoreB = calculerScore(mainBanque);
-            }
-
-            actualiserPlateau(true);
-
-            let scoreJ = calculerScore(mainJoueur);
-            if (scoreB > 21 || scoreJ > scoreB) {
-                currentJetons += mise * 2;
-                finDePartie("Victoire ! +" + (mise * 2) + " jetons.");
-            } else if (scoreJ === scoreB) {
-                currentJetons += mise;
-                finDePartie("Égalité. Mise remboursée.");
-            } else {
-                finDePartie("La banque l'emporte.");
-            }
-            syncJetons();
-        }
-
-        function finDePartie(msg) {
-            partieEnCours = false;
-            document.getElementById("messageResultat").innerText = msg;
-            document.getElementById("actionButtons").style.display = "none";
-        }
-
-        async function envoyerBroadcast() {
-            let texte = document.getElementById("broadcastText").value;
-            if (!texte) return;
-
-            let res = await fetch('/api/admin/broadcast', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ texte, auteur: currentUser })
-            });
-            let data = await res.json();
-            if(data.success) {
-                document.getElementById("broadcastText").value = "";
-                verifierMessagesGlobaux();
-                alert("Signal diffusé à tous les clients connectés !");
-            }
-        }
-
-        async function effacerBroadcast() {
-            let res = await fetch('/api/admin/clear-broadcast', { method: 'POST' });
-            let data = await res.json();
-            if(data.success) {
-                verifierMessagesGlobaux();
-                alert("Signal coupé.");
-            }
-        }
-
-        async function creerPromoAdmin() {
-            let code = document.getElementById("newPromoCode").value;
-            let montant = document.getElementById("newPromoGain").value;
-            let msgEl = document.getElementById("adminPromoMsg");
-
-            let res = await fetch('/api/admin/create-promo', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, montant })
-            });
-            let data = await res.json();
-
-            if (data.success) {
-                msgEl.innerText = `Code "${code}" créé (+${montant} jetons) !`;
-                document.getElementById("newPromoCode").value = "";
-                document.getElementById("newPromoGain").value = "";
-            } else {
-                msgEl.style.color = "#ff4444";
-                msgEl.innerText = data.error;
-            }
+        // Action du bouton de contact en cas de problème
+        function openSupport() {
+            // Remplace par ton lien de contact, ton profil Discord, ou ton mail
+            window.location.href = "mailto:ton-email@example.com?subject=Problème sur le BlackJack";
         }
     </script>
 </body>

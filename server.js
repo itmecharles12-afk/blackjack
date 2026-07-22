@@ -1,137 +1,98 @@
 const express = require('express');
 const path = require('path');
-
+const fs = require('fs');
 const app = express();
-app.use(express.urlencoded({ extended: true }));
+const PORT = process.env.PORT || 10000;
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-let utilisateurs = {
-    "charles": { mdp: "admin12", jetons: 1000, admin: true, promosUtilisees: [] }
+// Fichier pour sauvegarder les données des joueurs et éviter de les perdre
+const DATA_FILE = path.join(__dirname, 'data.json');
+
+let database = {
+    maintenance: false,
+    // -1 = infini, sinon nombre d'utilisations max
+    promoCodes: {
+        "WELCOME": { discount: 10, uses: -1 },
+        "PROMO5": { discount: 5, uses: 3 }
+    },
+    players: {} // Stocke l'argent/scores des joueurs par pseudo ou ID
 };
 
-let messageGlobal = {
-    id: 0,
-    actif: false,
-    texte: "",
-    auteur: ""
-};
-
-let codesPromos = {
-    "tokyo": 200,
-    "drift": 500,
-    "bonus": 100
-};
-
-app.post('/api/auth', (req, res) => {
-    let { user, mdp } = req.body;
-    if (!user || !mdp) {
-        return res.json({ success: false, error: "Remplis tous les champs !" });
+// Charger les données existantes au démarrage
+if (fs.existsSync(DATA_FILE)) {
+    try {
+        const fileData = fs.readFileSync(DATA_FILE, 'utf8');
+        database = JSON.parse(fileData);
+    } catch (e) {
+        console.log("Erreur de lecture de la base, utilisation des valeurs par défaut.");
     }
-    user = user.trim().toLowerCase();
+}
 
-    if (utilisateurs[user]) {
-        if (utilisateurs[user].mdp === mdp) {
-            res.json({ success: true, user: user, jetons: utilisateurs[user].jetons, admin: utilisateurs[user].admin });
-        } else {
-            res.json({ success: false, error: "Mauvais mot de passe !" });
-        }
+// Fonction pour sauvegarder automatiquement
+function saveData() {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(database, null, 2));
+}
+
+// Route d'état du site (maintenance + config)
+app.get('/api/status', (req, res) => {
+    res.json({ maintenance: database.maintenance });
+});
+
+// Activer / Désactiver la maintenance (Admin)
+app.post('/api/admin/maintenance', (req, res) => {
+    database.maintenance = req.body.maintenance;
+    saveData();
+    res.json({ success: true, maintenance: database.maintenance });
+});
+
+// Valider un code promo de manière sécurisée
+app.post('/api/use-promo', (req, res) => {
+    const { code, playerKey } = req.body;
+    
+    if (!database.promoCodes[code]) {
+        return res.json({ success: false, message: "Code promo invalide !" });
+    }
+
+    let promo = database.promoCodes[code];
+
+    if (promo.uses === 0) {
+        return res.json({ success: false, message: "Ce code promo a expiré !" });
+    }
+
+    // Décrémenter si ce n'est pas illimité (-1)
+    if (promo.uses > 0) {
+        promo.uses -= 1;
+    }
+
+    saveData();
+    res.json({ 
+        success: true, 
+        discount: promo.discount, 
+        message: `Code appliqué ! +${promo.discount} de bonus.` 
+    });
+});
+
+// Sauvegarder la progression du joueur pour ne rien perdre
+app.post('/api/player/save', (req, res) => {
+    const { playerKey, playerData } = req.body;
+    if (playerKey) {
+        database.players[playerKey] = playerData;
+        saveData();
+        res.json({ success: true });
     } else {
-        utilisateurs[user] = { mdp: mdp, jetons: 500, admin: false, promosUtilisees: [] };
-        res.json({ success: true, user: user, jetons: 500, admin: false });
+        res.json({ success: false, message: "ID joueur manquant" });
     }
 });
 
-app.post('/api/update-jetons', (req, res) => {
-    let { user, jetons } = req.body;
-    if (utilisateurs[user]) {
-        utilisateurs[user].jetons = parseInt(jetons);
-        res.json({ success: true, jetons: utilisateurs[user].jetons });
-    } else {
-        res.json({ success: false });
-    }
+// Récupérer la progression du joueur
+app.get('/api/player/load/:key', (req, res) => {
+    const playerKey = req.params.key;
+    const playerData = database.players[playerKey] || null;
+    res.json({ success: true, data: playerData });
 });
 
-app.post('/api/user-info', (req, res) => {
-    let { user } = req.body;
-    if (utilisateurs[user]) {
-        res.json({ success: true, jetons: utilisateurs[user].jetons });
-    } else {
-        res.json({ success: false });
-    }
-});
-
-app.post('/api/promo', (req, res) => {
-    let { user, code } = req.body;
-    code = code ? code.trim().toLowerCase() : "";
-
-    if (!utilisateurs[user]) {
-        return res.json({ success: false, error: "Utilisateur inconnu" });
-    }
-
-    if (!utilisateurs[user].promosUtilisees) {
-        utilisateurs[user].promosUtilisees = [];
-    }
-
-    if (utilisateurs[user].promosUtilisees.includes(code)) {
-        return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
-    }
-
-    if (codesPromos[code] !== undefined) {
-        let gain = codesPromos[code];
-        utilisateurs[user].jetons += gain;
-        utilisateurs[user].promosUtilisees.push(code);
-        res.json({ success: true, jetons: utilisateurs[user].jetons, gain: gain });
-    } else {
-        res.json({ success: false, error: "Code promo invalide !" });
-    }
-});
-
-app.get('/api/admin/users', (req, res) => {
-    res.json(utilisateurs);
-});
-
-app.post('/api/admin/set-jetons', (req, res) => {
-    let { targetUser, jetons } = req.body;
-    if (utilisateurs[targetUser]) {
-        utilisateurs[targetUser].jetons = parseInt(jetons);
-        res.json({ success: true, jetons: utilisateurs[targetUser].jetons });
-    } else {
-        res.json({ success: false, error: "Utilisateur introuvable" });
-    }
-});
-
-app.post('/api/admin/create-promo', (req, res) => {
-    let { code, montant } = req.body;
-    if (!code || !montant) {
-        return res.json({ success: false, error: "Remplis tous les champs !" });
-    }
-    let cleanCode = code.trim().toLowerCase();
-    codesPromos[cleanCode] = parseInt(montant);
-    res.json({ success: true });
-});
-
-app.get('/api/message', (req, res) => {
-    res.json(messageGlobal);
-});
-
-app.post('/api/admin/broadcast', (req, res) => {
-    let { texte, auteur } = req.body;
-    messageGlobal = {
-        id: Date.now(),
-        actif: true,
-        texte: texte || "Message du système",
-        auteur: auteur || "Admin"
-    };
-    res.json({ success: true });
-});
-
-app.post('/api/admin/clear-broadcast', (req, res) => {
-    messageGlobal = { id: 0, actif: false, texte: "", auteur: "" };
-    res.json({ success: true });
-});
-
-const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
     console.log(`Serveur prêt sur le port ${PORT}`);
 });
