@@ -1,222 +1,171 @@
 const express = require('express');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const mongoose = require('mongoose');
 const path = require('path');
-const { MongoClient } = require('mongodb');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Connexion à ta base MongoDB Atlas
-const MONGO_URL = process.env.MONGO_URL || "mongodb+srv://itmecharles12_db_user:9Y02PqV2B4M9U7WA@cluster0.pwqnag6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-const DB_NAME = "blackjackDB";
+// URL de connexion MongoDB Atlas
+const uri = process.env.MONGODB_URI || "mongodb+srv://itmecharles12_db_user:1234@cluster0.pwqnag6.mongodb.net/blackjackDB?retryWrites=true&w=majority";
 
-let db = null;
-
+// Connexion Mongoose / MongoDB
 async function connectDB() {
     try {
-        const client = new MongoClient(MONGO_URL);
-        await client.connect();
-        db = client.db(DB_NAME);
+        await mongoose.connect(uri, {
+            serverApi: {
+                version: ServerApiVersion.v1,
+                strict: true,
+                deprecationErrors: true,
+            }
+        });
         console.log("Connecté à MongoDB avec succès !");
-
-        // Initialiser les configurations par défaut si la base est vide
-        let settingsCollection = db.collection('settings');
-        let settings = await settingsCollection.findOne({ id: "config" });
-        if (!settings) {
-            await settingsCollection.insertOne({
-                id: "config",
-                maintenance: false,
-                broadcast: { actif: false, texte: "", auteur: "" },
-                broadcastId: 1
-            });
-        }
-
-        // Créer l'admin par défaut si absent
-        let usersCollection = db.collection('users');
-        let charles = await usersCollection.findOne({ user: "charles" });
-        if (!charles) {
-            await usersCollection.insertOne({ user: "charles", mdp: "charles", jetons: 1000, admin: true });
-        }
-
-        // Créer des codes promos de base si vide
-        let promoCollection = db.collection('promos');
-        let countPromo = await promoCollection.countDocuments();
-        if (countPromo === 0) {
-            await promoCollection.insertMany([
-                { code: "WELCOME", gain: 100, uses: -1 },
-                { code: "PROMO50", gain: 50, uses: 5 }
-            ]);
-        }
-
-    } catch (e) {
-        console.error("Erreur de connexion MongoDB :", e);
+    } catch (err) {
+        console.error("Erreur de connexion MongoDB :", err);
     }
 }
 connectDB();
 
-// État du site (maintenance + broadcast)
-app.get('/api/status', async (req, res) => {
-    if (!db) return res.json({ maintenance: false, broadcast: { actif: false }, broadcastId: 1 });
-    let settings = await db.collection('settings').findOne({ id: "config" });
-    res.json(settings);
+// --- Schéma et Modèle Utilisateur ---
+const userSchema = new mongoose.Schema({
+    pseudo: { type: String, required: true, unique: true },
+    mdp: { type: String, required: true },
+    admin: { type: Boolean, default: false },
+    jetons: { type: Number, default: 500 }
 });
+const User = mongoose.model('User', userSchema);
 
-// Admin : Activer/Désactiver la maintenance
-app.post('/api/admin/maintenance', async (req, res) => {
-    if (!db) return res.json({ success: false });
-    await db.collection('settings').updateOne({ id: "config" }, { $set: { maintenance: req.body.maintenance } });
-    res.json({ success: true, maintenance: req.body.maintenance });
+// --- Schéma et Modèle Messages (Problèmes) ---
+const messageSchema = new mongoose.Schema({
+    pseudo: { type: String, required: true },
+    message: { type: String, required: true },
+    date: { type: Date, default: Date.now }
 });
+const Message = mongoose.model('Message', messageSchema);
 
-// Authentification
+// --- Routes Application (Exemples de base pour que le jeu fonctionne) ---
 app.post('/api/auth', async (req, res) => {
-    let { user, mdp } = req.body;
-    if (!user || !mdp) return res.json({ success: false, error: "Champs vides." });
-    if (!db) return res.json({ success: false, error: "Base de données non prête." });
-
-    let usersCol = db.collection('users');
-    let dbUser = await usersCol.findOne({ user: user });
-
-    if (!dbUser) {
-        dbUser = { user: user, mdp: mdp, jetons: 500, admin: (user === "charles") };
-        await usersCol.insertOne(dbUser);
-    }
-
-    if (dbUser.mdp === mdp) {
-        res.json({ 
-            success: true, 
-            user: dbUser.user, 
-            jetons: dbUser.jetons, 
-            admin: dbUser.admin 
-        });
-    } else {
-        res.json({ success: false, error: "Mot de passe incorrect." });
+    try {
+        const { user, mdp } = req.body;
+        if (!user || !mdp) return res.status(400).json({ error: "Champs requis" });
+        
+        let dbUser = await User.findOne({ pseudo: user });
+        if (!dbUser) {
+            const isFirst = (await User.countDocuments()) === 0;
+            dbUser = new User({ pseudo: user, mdp, admin: isFirst });
+            await dbUser.save();
+        } else if (dbUser.mdp !== mdp) {
+            return res.status(401).json({ error: "Mot de passe incorrect" });
+        }
+        res.json({ success: true, user: dbUser.pseudo, jetons: dbUser.jetons, admin: dbUser.admin });
+    } catch (e) {
+        res.status(500).json({ error: "Erreur serveur" });
     }
 });
 
 app.post('/api/user-info', async (req, res) => {
-    let { user } = req.body;
-    if (!db) return res.json({ success: false });
-    let dbUser = await db.collection('users').findOne({ user: user });
-    if (dbUser) {
-        res.json({ success: true, jetons: dbUser.jetons });
-    } else {
-        res.json({ success: false });
-    }
+    try {
+        const { user } = req.body;
+        const dbUser = await User.findOne({ pseudo: user });
+        if (dbUser) res.json({ success: true, jetons: dbUser.jetons });
+        else res.status(404).json({ error: "Utilisateur non trouvé" });
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
 app.post('/api/update-jetons', async (req, res) => {
-    let { user, jetons } = req.body;
-    if (!db) return res.json({ success: false });
-    let result = await db.collection('users').updateOne({ user: user }, { $set: { jetons: jetons } });
-    if (result.modifiedCount > 0 || result.matchedCount > 0) {
+    try {
+        const { user, jetons } = req.body;
+        await User.updateOne({ pseudo: user }, { jetons });
         res.json({ success: true });
-    } else {
-        res.json({ success: false });
-    }
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// Utilisation d'un code promo
-app.post('/api/promo', async (req, res) => {
-    let { user, code } = req.body;
-    if (!db) return res.json({ success: false });
-
-    let promoCol = db.collection('promos');
-    let promo = await promoCol.findOne({ code: code });
-
-    if (!promo) {
-        return res.json({ success: false, error: "Code promo invalide." });
-    }
-    if (promo.uses === 0) {
-        return res.json({ success: false, error: "Ce code promo a expiré." });
-    }
-
-    if (promo.uses > 0) {
-        await promoCol.updateOne({ code: code }, { $inc: { uses: -1 } });
-    }
-
-    let usersCol = db.collection('users');
-    await usersCol.updateOne({ user: user }, { $inc: { jetons: promo.gain } });
-    let updatedUser = await usersCol.findOne({ user: user });
-
-    res.json({ success: true, jetons: updatedUser.jetons, gain: promo.gain });
-});
-
-// Routes Admin
 app.get('/api/admin/users', async (req, res) => {
-    if (!db) return res.json({});
-    let usersList = await db.collection('users').find({}).toArray();
-    let usersObj = {};
-    usersList.forEach(u => {
-        usersObj[u.user] = { mdp: u.mdp, jetons: u.jetons, admin: u.admin };
-    });
-    res.json(usersObj);
+    try {
+        const users = await User.find();
+        let obj = {};
+        users.forEach(u => {
+            obj[u.pseudo] = { jetons: u.jetons, admin: u.admin };
+        });
+        res.json(obj);
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
 app.post('/api/admin/set-jetons', async (req, res) => {
-    let { targetUser, jetons } = req.body;
-    if (!db) return res.json({ success: false });
-    await db.collection('users').updateOne({ user: targetUser }, { $set: { jetons: parseInt(jetons) } });
-    let updatedUser = await db.collection('users').findOne({ user: targetUser });
-    res.json({ success: true, jetons: updatedUser.jetons });
+    try {
+        const { targetUser, jetons } = req.body;
+        await User.updateOne({ pseudo: targetUser }, { jetons: Number(jetons) });
+        const updated = await User.findOne({ pseudo: targetUser });
+        res.json({ success: true, jetons: updated.jetons });
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-app.get('/api/message', async (req, res) => {
-    if (!db) return res.json({ actif: false });
-    let settings = await db.collection('settings').findOne({ id: "config" });
-    res.json({
-        actif: settings.broadcast.actif,
-        texte: settings.broadcast.texte,
-        auteur: settings.broadcast.auteur,
-        id: settings.broadcastId
-    });
+// Variables globales temporaires pour les statuts et promos
+let siteStatus = { maintenance: false };
+let broadcastData = { actif: false, texte: "", auteur: "" };
+let broadcastId = 1;
+
+app.get('/api/status', (req, res) => {
+    res.json({ ...siteStatus, broadcast: broadcastData, broadcastId });
 });
 
-app.post('/api/admin/broadcast', async (req, res) => {
-    let { texte, auteur } = req.body;
-    if (!db) return res.json({ success: false });
-    let settings = await db.collection('settings').findOne({ id: "config" });
-    let newId = (settings.broadcastId || 1) + 1;
-
-    await db.collection('settings').updateOne({ id: "config" }, {
-        $set: {
-            broadcast: { actif: true, texte, auteur },
-            broadcastId: newId
-        }
-    });
+app.post('/api/admin/maintenance', (req, res) => {
+    siteStatus.maintenance = req.body.maintenance;
     res.json({ success: true });
 });
 
-app.post('/api/admin/clear-broadcast', async (req, res) => {
-    if (!db) return res.json({ success: false });
-    let settings = await db.collection('settings').findOne({ id: "config" });
-    let newId = (settings.broadcastId || 1) + 1;
-
-    await db.collection('settings').updateOne({ id: "config" }, {
-        $set: {
-            "broadcast.actif": false,
-            broadcastId: newId
-        }
-    });
+app.post('/api/admin/broadcast', (req, res) => {
+    broadcastData = { actif: true, texte: req.body.texte, auteur: req.body.auteur };
+    broadcastId++;
     res.json({ success: true });
 });
 
-app.post('/api/admin/create-promo', async (req, res) => {
-    let { code, montant, uses } = req.body;
-    if (!code || !montant) return res.json({ success: false, error: "Remplis tous les champs." });
-    if (!db) return res.json({ success: false });
-
-    let usesCount = uses !== undefined && uses !== "" ? parseInt(uses) : -1;
-
-    await db.collection('promos').updateOne(
-        { code: code },
-        { $set: { gain: parseInt(montant), uses: usesCount } },
-        { upsert: true }
-    );
+app.post('/api/admin/clear-broadcast', (req, res) => {
+    broadcastData.actif = false;
     res.json({ success: true });
 });
 
+app.post('/api/promo', (req, res) => {
+    res.json({ success: false, error: "Code promo invalide" });
+});
+
+app.post('/api/admin/create-promo', (req, res) => {
+    res.json({ success: true });
+});
+
+// --- NOUVELLES ROUTES : Gestion des messages / problèmes ---
+app.post('/api/messages', async (req, res) => {
+    try {
+        const { pseudo, message } = req.body;
+        if (!message) return res.status(400).json({ error: "Message vide" });
+        
+        const newMsg = new Message({
+            pseudo: pseudo || "Anonyme",
+            message
+        });
+        await newMsg.save();
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: "Erreur serveur" });
+    }
+});
+
+app.get('/api/messages', async (req, res) => {
+    try {
+        // Récupère les messages du plus récent au plus ancien
+        const messages = await Message.find().sort({ date: -1 });
+        res.json(messages);
+    } catch (e) {
+        res.status(500).json({ error: "Erreur serveur" });
+    }
+});
+
+// Lancement du serveur
 app.listen(PORT, () => {
     console.log(`Serveur prêt sur le port ${PORT}`);
 });

@@ -39,7 +39,7 @@
             transition: all 0.2s;
         }
         button:hover { background: #444; border-color: #888; }
-        input {
+        input, textarea {
             background: #111;
             border: 1px solid #444;
             color: #fff;
@@ -57,7 +57,6 @@
             border: 1px dashed #333;
         }
         
-        /* Bandeau Maintenance / Rénovation */
         #maintenance-banner {
             display: none;
             position: fixed;
@@ -73,7 +72,6 @@
             padding: 20px;
         }
 
-        /* Bouton de support / contact */
         #support-btn {
             position: fixed;
             bottom: 20px;
@@ -166,18 +164,44 @@
             border-bottom: 1px solid #222;
             font-size: 0.85em;
         }
+        
+        /* Style pour la liste des messages admin sur le côté */
+        .admin-messages-box {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #444;
+            background: #111;
+            margin-top: 10px;
+            text-align: left;
+            padding: 8px;
+        }
+        .admin-msg-item {
+            border-bottom: 1px solid #333;
+            padding: 6px 0;
+            font-size: 0.8em;
+        }
     </style>
 </head>
 <body>
 
-    <!-- BANDEAU DE RÉNOVATION / MAINTENANCE -->
     <div id="maintenance-banner">
         <h1>🚧 Site en Rénovation 🚧</h1>
         <p style="font-size: 1rem; color: #aaa;">Le site subit des modifications. Revenez très bientôt !</p>
     </div>
 
-    <!-- BOUTON SUPPORT / CONTACT RAPIDE -->
-    <button id="support-btn" onclick="openSupport()">⚠️ Problème</button>
+    <!-- BOUTON SUPPORT / PROBLÈME -->
+    <button id="support-btn" onclick="ouvrirModalProbleme()">⚠️ Problème</button>
+
+    <!-- MODALE ENVOI DE PROBLÈME -->
+    <div class="broadcast-modal" id="modalProbleme">
+        <div class="broadcast-content">
+            <h3>SIGNALER UN PROBLÈME</h3>
+            <p style="font-size: 0.9em; color: #aaa;">Ton message sera envoyé directement aux administrateurs.</p>
+            <textarea id="texteProbleme" rows="4" placeholder="Décris ton problème ici..." style="width: 90%; resize: none;"></textarea><br>
+            <button onclick="envoyerProbleme()" style="background:#2ed573; border-color:#26af5f;">Envoyer</button>
+            <button onclick="fermerModalProbleme()" style="background:#444;">Annuler</button>
+        </div>
+    </div>
 
     <div class="container">
         <h2>BLACKJACK</h2>
@@ -240,13 +264,17 @@
                 <button onclick="effacerBroadcast()" style="background:#440000; border-color:#880000;">Couper</button>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
-                    <p style="font-size:0.85em; color:#aaa; margin:0;">Utilisateurs connectés (Sync auto) :</p>
+                    <p style="font-size:0.85em; color:#aaa; margin:0;">Utilisateurs connectés :</p>
                     <button onclick="chargerListeUtilisateursAdmin()" style="font-size:0.75em; background:#222; padding:3px 8px;">🔄 Forcer</button>
                 </div>
-                
                 <input type="text" id="searchUserBox" placeholder="Filtrer un pseudo..." onkeyup="filtrerUtilisateurs()" style="width: 95%; margin-top:5px;">
-                
                 <div class="user-list-box" id="userListContainer"></div>
+
+                <!-- LISTE DES MESSAGES REÇUS (PROBLÈMES) -->
+                <h4 style="color: #ffaa00; margin:15px 0 5px 0;">Messages & Problèmes Reçus ✉️</h4>
+                <div class="admin-messages-box" id="adminMessagesContainer">
+                    <p style="color:#777; font-size:0.8em;">Chargement des messages...</p>
+                </div>
 
                 <h4 style="color: #00ffcc; margin:15px 0 5px 0;">Créer un Code Promo 🎟️</h4>
                 <input type="text" id="newPromoCode" placeholder="Nom du code" style="width: 38%;">
@@ -286,14 +314,12 @@
                 let res = await fetch('/api/status');
                 let data = await res.json();
                 
-                // Gestion Maintenance
                 if (data.maintenance) {
                     document.getElementById("maintenance-banner").style.display = "flex";
                 } else {
                     document.getElementById("maintenance-banner").style.display = "none";
                 }
 
-                // Gestion Broadcast
                 let icon = document.getElementById("tokyoIcon");
                 if (data.broadcast && data.broadcast.actif) {
                     window.currentBroadcastText = `[De : ${data.broadcast.auteur}]<br><br>"${data.broadcast.texte}"`;
@@ -378,7 +404,9 @@
                 if (isAdmin) {
                     document.getElementById("adminPanel").style.display = "block";
                     chargerListeUtilisateursAdmin();
+                    chargerMessagesAdmin();
                     setInterval(chargerListeUtilisateursAdmin, 3000);
+                    setInterval(chargerMessagesAdmin, 5000); // Actualise les messages toutes les 5s
                 }
             } else {
                 document.getElementById("authError").innerText = data.error;
@@ -481,6 +509,68 @@
             }
         }
 
+        // --- Fonctions pour les messages de problèmes ---
+        function ouvrirModalProbleme() {
+            document.getElementById("modalProbleme").style.display = "flex";
+        }
+
+        function fermerModalProbleme() {
+            document.getElementById("modalProbleme").style.display = "none";
+            document.getElementById("texteProbleme").value = "";
+        }
+
+        async function envoyerProbleme() {
+            let message = document.getElementById("texteProbleme").value;
+            if (!message.trim()) {
+                alert("Le message est vide.");
+                return;
+            }
+
+            let pseudoUtilisateur = currentUser ? currentUser : "Visiteur";
+
+            let res = await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pseudo: pseudoUtilisateur, message })
+            });
+            let data = await res.json();
+
+            if (data.success) {
+                alert("Problème envoyé avec succès !");
+                fermerModalProbleme();
+            } else {
+                alert("Erreur lors de l'envoi.");
+            }
+        }
+
+        async function chargerMessagesAdmin() {
+            try {
+                let res = await fetch('/api/messages');
+                let messages = await res.json();
+                let container = document.getElementById("adminMessagesContainer");
+                container.innerHTML = "";
+
+                if (messages.length === 0) {
+                    container.innerHTML = `<p style="color:#777; font-size:0.8em;">Aucun message reçu.</p>`;
+                    return;
+                }
+
+                messages.forEach(msg => {
+                    let d = new Date(msg.date);
+                    let heureFormatee = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+                    let html = `
+                        <div class="admin-msg-item">
+                            <div style="color: #00ffcc; font-weight: bold;">${msg.pseudo} <span style="color: #888; font-weight: normal; font-size: 0.85em;">(${heureFormatee})</span></div>
+                            <div style="color: #fff; margin-top: 3px;">${msg.message}</div>
+                        </div>
+                    `;
+                    container.innerHTML += html;
+                });
+            } catch(e) {}
+        }
+
+        // Logique Jeu Blackjack
         let mise = 0;
         let mainJoueur = [];
         let mainBanque = [];
@@ -582,7 +672,7 @@
             let data = await res.json();
             if(data.success) {
                 document.getElementById("broadcastText").value = "";
-                alert("Signal diffusé à tous les clients connectés !");
+                alert("Signal diffusé !");
             }
         }
 
@@ -605,20 +695,13 @@
             let data = await res.json();
 
             if (data.success) {
-                let usesText = (uses == -1 || uses === "") ? "infini" : uses + " uses";
-                msgEl.innerText = `Code "${code}" créé (+${montant} jetons, ${usesText}) !`;
+                msgEl.innerText = `Code "${code}" créé (+${montant} jetons) !`;
                 document.getElementById("newPromoCode").value = "";
                 document.getElementById("newPromoGain").value = "";
-                document.getElementById("newPromoUses").value = "-1";
             } else {
                 msgEl.style.color = "#ff4444";
                 msgEl.innerText = data.error;
             }
-        }
-
-        // Action du bouton de contact / problème
-        function openSupport() {
-            window.location.href = "mailto:ton-email@example.com?subject=Problème sur le Blackjack";
         }
     </script>
 </body>
