@@ -1,176 +1,219 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
+const { MongoClient } = require('mongodb');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const DATA_FILE = path.join(__dirname, 'data.json');
+// Connexion à ta base MongoDB Atlas
+const MONGO_URL = process.env.MONGO_URL || "mongodb+srv://itmecharles12_db_user:9Y02PqV2B4M9U7WA@cluster0.pwqnag6.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+const DB_NAME = "blackjackDB";
 
-// Base de données par défaut avec persistance
-let database = {
-    maintenance: false, // Mode Rénovation (true/false)
-    broadcast: { actif: false, texte: "", auteur: "" },
-    broadcastId: 1,
-    users: {
-        "charles": { mdp: "charles", jetons: 1000, admin: true }
-    },
-    // uses: -1 pour infini, ou nombre max d'utilisations
-    promoCodes: {
-        "WELCOME": { gain: 100, uses: -1 },
-        "PROMO50": { gain: 50, uses: 5 }
-    }
-};
+let db = null;
 
-if (fs.existsSync(DATA_FILE)) {
+async function connectDB() {
     try {
-        const fileData = fs.readFileSync(DATA_FILE, 'utf8');
-        let parsed = JSON.parse(fileData);
-        if (parsed.maintenance !== undefined) database.maintenance = parsed.maintenance;
-        if (parsed.broadcast) database.broadcast = parsed.broadcast;
-        if (parsed.broadcastId) database.broadcastId = parsed.broadcastId;
-        if (parsed.users) database.users = { ...database.users, ...parsed.users };
-        if (parsed.promoCodes) database.promoCodes = { ...database.promoCodes, ...parsed.promoCodes };
+        const client = new MongoClient(MONGO_URL);
+        await client.connect();
+        db = client.db(DB_NAME);
+        console.log("Connecté à MongoDB avec succès !");
+
+        // Initialiser les configurations par défaut si la base est vide
+        let settingsCollection = db.collection('settings');
+        let settings = await settingsCollection.findOne({ id: "config" });
+        if (!settings) {
+            await settingsCollection.insertOne({
+                id: "config",
+                maintenance: false,
+                broadcast: { actif: false, texte: "", auteur: "" },
+                broadcastId: 1
+            });
+        }
+
+        // Créer l'admin par défaut si absent
+        let usersCollection = db.collection('users');
+        let charles = await usersCollection.findOne({ user: "charles" });
+        if (!charles) {
+            await usersCollection.insertOne({ user: "charles", mdp: "charles", jetons: 1000, admin: true });
+        }
+
+        // Créer des codes promos de base si vide
+        let promoCollection = db.collection('promos');
+        let countPromo = await promoCollection.countDocuments();
+        if (countPromo === 0) {
+            await promoCollection.insertMany([
+                { code: "WELCOME", gain: 100, uses: -1 },
+                { code: "PROMO50", gain: 50, uses: 5 }
+            ]);
+        }
+
     } catch (e) {
-        console.log("Erreur de lecture data.json");
+        console.error("Erreur de connexion MongoDB :", e);
     }
 }
-
-function saveData() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(database, null, 2));
-}
+connectDB();
 
 // État du site (maintenance + broadcast)
-app.get('/api/status', (req, res) => {
-    res.json({ 
-        maintenance: database.maintenance,
-        broadcast: database.broadcast,
-        broadcastId: database.broadcastId
-    });
+app.get('/api/status', async (req, res) => {
+    if (!db) return res.json({ maintenance: false, broadcast: { actif: false }, broadcastId: 1 });
+    let settings = await db.collection('settings').findOne({ id: "config" });
+    res.json(settings);
 });
 
 // Admin : Activer/Désactiver la maintenance
-app.post('/api/admin/maintenance', (req, res) => {
-    database.maintenance = req.body.maintenance;
-    saveData();
-    res.json({ success: true, maintenance: database.maintenance });
+app.post('/api/admin/maintenance', async (req, res) => {
+    if (!db) return res.json({ success: false });
+    await db.collection('settings').updateOne({ id: "config" }, { $set: { maintenance: req.body.maintenance } });
+    res.json({ success: true, maintenance: req.body.maintenance });
 });
 
 // Authentification
-app.post('/api/auth', (req, res) => {
+app.post('/api/auth', async (req, res) => {
     let { user, mdp } = req.body;
     if (!user || !mdp) return res.json({ success: false, error: "Champs vides." });
+    if (!db) return res.json({ success: false, error: "Base de données non prête." });
 
-    if (!database.users[user]) {
-        database.users[user] = { mdp: mdp, jetons: 500, admin: (user === "charles") };
-        saveData();
+    let usersCol = db.collection('users');
+    let dbUser = await usersCol.findOne({ user: user });
+
+    if (!dbUser) {
+        dbUser = { user: user, mdp: mdp, jetons: 500, admin: (user === "charles") };
+        await usersCol.insertOne(dbUser);
     }
 
-    if (database.users[user].mdp === mdp) {
+    if (dbUser.mdp === mdp) {
         res.json({ 
             success: true, 
-            user: user, 
-            jetons: database.users[user].jetons, 
-            admin: database.users[user].admin 
+            user: dbUser.user, 
+            jetons: dbUser.jetons, 
+            admin: dbUser.admin 
         });
     } else {
         res.json({ success: false, error: "Mot de passe incorrect." });
     }
 });
 
-app.post('/api/user-info', (req, res) => {
+app.post('/api/user-info', async (req, res) => {
     let { user } = req.body;
-    if (database.users[user]) {
-        res.json({ success: true, jetons: database.users[user].jetons });
+    if (!db) return res.json({ success: false });
+    let dbUser = await db.collection('users').findOne({ user: user });
+    if (dbUser) {
+        res.json({ success: true, jetons: dbUser.jetons });
     } else {
         res.json({ success: false });
     }
 });
 
-app.post('/api/update-jetons', (req, res) => {
+app.post('/api/update-jetons', async (req, res) => {
     let { user, jetons } = req.body;
-    if (database.users[user]) {
-        database.users[user].jetons = jetons;
-        saveData();
+    if (!db) return res.json({ success: false });
+    let result = await db.collection('users').updateOne({ user: user }, { $set: { jetons: jetons } });
+    if (result.modifiedCount > 0 || result.matchedCount > 0) {
         res.json({ success: true });
     } else {
         res.json({ success: false });
     }
 });
 
-// Utilisation d'un code promo avec gestion des uses (illimité à -1 ou décrément)
-app.post('/api/promo', (req, res) => {
+// Utilisation d'un code promo
+app.post('/api/promo', async (req, res) => {
     let { user, code } = req.body;
-    if (!database.promoCodes[code]) {
+    if (!db) return res.json({ success: false });
+
+    let promoCol = db.collection('promos');
+    let promo = await promoCol.findOne({ code: code });
+
+    if (!promo) {
         return res.json({ success: false, error: "Code promo invalide." });
     }
-
-    let promo = database.promoCodes[code];
     if (promo.uses === 0) {
-        return res.json({ success: false, error: "Ce code promo a expiré (utilisations épuisées)." });
+        return res.json({ success: false, error: "Ce code promo a expiré." });
     }
 
-    // Décrémenter si ce n'est pas infini (-1)
     if (promo.uses > 0) {
-        promo.uses -= 1;
+        await promoCol.updateOne({ code: code }, { $inc: { uses: -1 } });
     }
 
-    database.users[user].jetons += promo.gain;
-    saveData();
-    res.json({ success: true, jetons: database.users[user].jetons, gain: promo.gain });
+    let usersCol = db.collection('users');
+    await usersCol.updateOne({ user: user }, { $inc: { jetons: promo.gain } });
+    let updatedUser = await usersCol.findOne({ user: user });
+
+    res.json({ success: true, jetons: updatedUser.jetons, gain: promo.gain });
 });
 
 // Routes Admin
-app.get('/api/admin/users', (req, res) => {
-    res.json(database.users);
+app.get('/api/admin/users', async (req, res) => {
+    if (!db) return res.json({});
+    let usersList = await db.collection('users').find({}).toArray();
+    let usersObj = {};
+    usersList.forEach(u => {
+        usersObj[u.user] = { mdp: u.mdp, jetons: u.jetons, admin: u.admin };
+    });
+    res.json(usersObj);
 });
 
-app.post('/api/admin/set-jetons', (req, res) => {
+app.post('/api/admin/set-jetons', async (req, res) => {
     let { targetUser, jetons } = req.body;
-    if (database.users[targetUser]) {
-        database.users[targetUser].jetons = parseInt(jetons);
-        saveData();
-        res.json({ success: true, jetons: database.users[targetUser].jetons });
-    } else {
-        res.json({ success: false });
-    }
+    if (!db) return res.json({ success: false });
+    await db.collection('users').updateOne({ user: targetUser }, { $set: { jetons: parseInt(jetons) } });
+    let updatedUser = await db.collection('users').findOne({ user: targetUser });
+    res.json({ success: true, jetons: updatedUser.jetons });
 });
 
-app.get('/api/message', (req, res) => {
+app.get('/api/message', async (req, res) => {
+    if (!db) return res.json({ actif: false });
+    let settings = await db.collection('settings').findOne({ id: "config" });
     res.json({
-        actif: database.broadcast.actif,
-        texte: database.broadcast.texte,
-        auteur: database.broadcast.auteur,
-        id: database.broadcastId
+        actif: settings.broadcast.actif,
+        texte: settings.broadcast.texte,
+        auteur: settings.broadcast.auteur,
+        id: settings.broadcastId
     });
 });
 
-app.post('/api/admin/broadcast', (req, res) => {
+app.post('/api/admin/broadcast', async (req, res) => {
     let { texte, auteur } = req.body;
-    database.broadcast = { actif: true, texte, auteur };
-    database.broadcastId += 1;
-    saveData();
+    if (!db) return res.json({ success: false });
+    let settings = await db.collection('settings').findOne({ id: "config" });
+    let newId = (settings.broadcastId || 1) + 1;
+
+    await db.collection('settings').updateOne({ id: "config" }, {
+        $set: {
+            broadcast: { actif: true, texte, auteur },
+            broadcastId: newId
+        }
+    });
     res.json({ success: true });
 });
 
-app.post('/api/admin/clear-broadcast', (req, res) => {
-    database.broadcast.actif = false;
-    database.broadcastId += 1;
-    saveData();
+app.post('/api/admin/clear-broadcast', async (req, res) => {
+    if (!db) return res.json({ success: false });
+    let settings = await db.collection('settings').findOne({ id: "config" });
+    let newId = (settings.broadcastId || 1) + 1;
+
+    await db.collection('settings').updateOne({ id: "config" }, {
+        $set: {
+            "broadcast.actif": false,
+            broadcastId: newId
+        }
+    });
     res.json({ success: true });
 });
 
-app.post('/api/admin/create-promo', (req, res) => {
+app.post('/api/admin/create-promo', async (req, res) => {
     let { code, montant, uses } = req.body;
     if (!code || !montant) return res.json({ success: false, error: "Remplis tous les champs." });
-    
-    // Valeur par défaut : -1 pour infini si non précisé
+    if (!db) return res.json({ success: false });
+
     let usesCount = uses !== undefined && uses !== "" ? parseInt(uses) : -1;
 
-    database.promoCodes[code] = { gain: parseInt(montant), uses: usesCount };
-    saveData();
+    await db.collection('promos').updateOne(
+        { code: code },
+        { $set: { gain: parseInt(montant), uses: usesCount } },
+        { upsert: true }
+    );
     res.json({ success: true });
 });
 
