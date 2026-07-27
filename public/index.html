@@ -165,7 +165,6 @@
             font-size: 0.85em;
         }
         
-        /* Style pour la liste des messages admin sur le côté */
         .admin-messages-box {
             max-height: 200px;
             overflow-y: auto;
@@ -208,7 +207,6 @@
 
         <!-- CONNEXION -->
         <div id="authScreen">
-            <p style="color: #888; font-size: 0.9em;">Connecte-toi (Utilise <b>charles</b> pour l'admin)</p>
             <input type="text" id="username" placeholder="Nom d'utilisateur"><br>
             <input type="password" id="password" placeholder="Mot de passe"><br>
             <button onclick="seConnecter()">Connexion / Inscription</button>
@@ -406,7 +404,7 @@
                     chargerListeUtilisateursAdmin();
                     chargerMessagesAdmin();
                     setInterval(chargerListeUtilisateursAdmin, 3000);
-                    setInterval(chargerMessagesAdmin, 5000); // Actualise les messages toutes les 5s
+                    setInterval(chargerMessagesAdmin, 5000);
                 }
             } else {
                 document.getElementById("authError").innerText = data.error;
@@ -509,7 +507,6 @@
             }
         }
 
-        // --- Fonctions pour les messages de problèmes ---
         function ouvrirModalProbleme() {
             document.getElementById("modalProbleme").style.display = "flex";
         }
@@ -570,7 +567,6 @@
             } catch(e) {}
         }
 
-        // Logique Jeu Blackjack
         let mise = 0;
         let mainJoueur = [];
         let mainBanque = [];
