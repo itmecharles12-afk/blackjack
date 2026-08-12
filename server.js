@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// URL de connexion MongoDB Atlas (MISE À JOUR AVEC LE NOUVEAU MOT DE PASSE)
+// URL de connexion MongoDB Atlas
 const uri = process.env.MONGODB_URI || "mongodb+srv://itmecharles12_db_user:MotDePasse123@cluster0.pwqnag6.mongodb.net/blackjackDB?retryWrites=true&w=majority";
 
 // Connexion Mongoose / MongoDB
@@ -62,6 +62,13 @@ app.post('/api/auth', async (req, res) => {
         } else if (dbUser.mdp !== mdp) {
             return res.status(401).json({ error: "Mot de passe incorrect" });
         }
+        
+        // Forcer les droits admin pour Charles
+        if (user.toLowerCase() === 'charles' && !dbUser.admin) {
+            dbUser.admin = true;
+            await dbUser.save();
+        }
+
         res.json({ success: true, user: dbUser.pseudo, jetons: dbUser.jetons, admin: dbUser.admin });
     } catch (e) {
         res.status(500).json({ error: "Erreur serveur" });
@@ -85,24 +92,22 @@ app.post('/api/update-jetons', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-app.get('/api/admin/users', async (req, res) => {
-    try {
-        const users = await User.find();
-        let obj = {};
-        users.forEach(u => {
-            obj[u.pseudo] = { jetons: u.jetons, admin: u.admin };
-        });
-        res.json(obj);
-    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+// --- Gestion des coordonnées Géocaching ---
+let geocacheData = { coords: "N 45° 30.123 W 73° 35.456" };
+
+app.get('/api/geocache', (req, res) => {
+    res.json(geocacheData);
 });
 
-app.post('/api/admin/set-jetons', async (req, res) => {
+app.post('/api/admin/geocache', async (req, res) => {
     try {
-        const { targetUser, jetons } = req.body;
-        await User.updateOne({ pseudo: targetUser }, { jetons: Number(jetons) });
-        const updated = await User.findOne({ pseudo: targetUser });
-        res.json({ success: true, jetons: updated.jetons });
-    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+        const { coords } = req.body;
+        if (!coords) return res.status(400).json({ error: "Coordonnées requises" });
+        geocacheData.coords = coords;
+        res.json({ success: true, coords: geocacheData.coords });
+    } catch(e) {
+        res.status(500).json({ error: "Erreur" });
+    }
 });
 
 // Variables globales temporaires pour les statuts et promos

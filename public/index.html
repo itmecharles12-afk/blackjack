@@ -13,7 +13,6 @@
         input { background: #111; border: 1px solid #444; color: #fff; padding: 8px; font-family: monospace; margin: 5px; text-align: center; }
         .cards-display { font-size: 1.8em; letter-spacing: 8px; margin: 15px 0; background: #0a0a0a; padding: 15px; border: 1px dashed #333; }
         
-        /* Icônes de coin */
         .geocache-icon-corner { position: fixed; top: 20px; right: 20px; width: 45px; height: 45px; background: #000; border: 2px solid #2ed573; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 999; }
         #support-btn { position: fixed; bottom: 20px; left: 20px; background: #2ed573; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; z-index: 998; }
         
@@ -23,32 +22,28 @@
 </head>
 <body>
 
-    <!-- ICÔNE GÉOCACHING -->
-    <div class="geocache-icon-corner" onclick="ouvrirTutoGeocaching()" title="Tutoriel & Mode Invité Géocaching">
+    <div class="geocache-icon-corner" onclick="ouvrirTutoGeocaching()" title="Tutoriel & Mode Invité">
         <div style="font-size: 20px;">📍</div>
     </div>
 
-    <!-- MODALE TUTORIEL + MODE INVITÉ -->
     <div class="broadcast-modal" id="modalTuto">
         <div class="broadcast-content">
             <h3>GÉOCACHING</h3>
             <p style="text-align: left; font-size: 0.9em; color: #aaa;">
                 1. Règle : Fais du Blackjack pour accumuler des points.<br>
-                2. Progression : La partie est locale, ta progression ne sera pas sauvegardée en fermant la page.<br><br>
-                <b style="color: #ffcc00;">OBJECTIF :</b> Atteins <b>1000 jetons</b> pour débloquer instantanément les coordonnées de la géocache !
+                2. Progression : Mode invité ou connecté.<br><br>
+                <b style="color: #ffcc00;">OBJECTIF :</b> Atteins <b>1000 jetons</b> pour débloquer les coordonnées de la géocache !
             </p>
-            <button onclick="lancerModeInvite()" style="background:#2ed573; border-color:#26af5f; width: 100%; margin-bottom: 10px;">Jouer en mode Géocaching (Sans compte)</button>
+            <button onclick="lancerModeInvite()" style="background:#2ed573; border-color:#26af5f; width: 100%; margin-bottom: 10px;">Jouer en mode Géocaching (Invité)</button>
             <button onclick="fermerTuto()" style="background:#444; width: 100%;">Fermer</button>
         </div>
     </div>
 
-    <!-- BOUTON SUPPORT -->
     <button id="support-btn" onclick="ouvrirModalProbleme()">⚠️ Problème</button>
 
     <div class="container">
         <h2>BLACKJACK</h2>
 
-        <!-- CONNEXION CLASSIQUE -->
         <div id="authScreen">
             <input type="text" id="username" placeholder="Nom d'utilisateur"><br>
             <input type="password" id="password" placeholder="Mot de passe"><br>
@@ -56,14 +51,19 @@
             <p id="authError" style="color: #ff4444; font-size: 0.85em;"></p>
         </div>
 
-        <!-- JEU -->
         <div id="gameScreen" style="display:none;">
             <p>Joueur : <b id="displayUser"></b> | Jetons : <span id="jetons" style="color:#00ffcc;">500</span> <button onclick="deconnexion()" style="font-size:0.6em; padding:3px 6px; margin-left:10px;">Quitter</button></p>
             
-            <!-- BOUTON COORDONNÉES (APPARAÎT À 1000 JETONS) -->
+            <!-- PANNEAU ADMIN POUR LES COORDONNÉES -->
+            <div id="adminCoordsPanel" style="display:none; margin: 15px 0; padding: 10px; border: 1px dashed #ffcc00; background: #221a00;">
+                <p style="color: #ffcc00; margin: 0 0 5px 0; font-size: 0.85em;">Panneau Admin : Modifier les coordonnées</p>
+                <input type="text" id="newCoordsInput" placeholder="Ex: N 45° ... W 73° ..." style="width: 75%;">
+                <button onclick="modifierCoordonneesAdmin()">Mettre à jour</button>
+            </div>
+
             <div id="coordsBox" style="display:none; margin: 15px 0; padding: 10px; border: 2px solid #2ed573; background: #002200;">
                 <p style="color: #2ed573; font-weight: bold; margin: 0;">📍 Coordonnées de la Géocache :</p>
-                <p style="color: #fff; margin: 5px 0 0 0;">N 45° 30.123 W 73° 35.456</p>
+                <p id="coordsText" style="color: #fff; margin: 5px 0 0 0; font-weight: bold;"></p>
             </div>
 
             <div style="margin: 15px 0;">
@@ -93,14 +93,43 @@
         let currentUser = null;
         let currentJetons = 500;
         let modeInvite = false;
+        let isAdmin = false;
 
         function ouvrirTutoGeocaching() { document.getElementById("modalTuto").style.display = "flex"; }
         function fermerTuto() { document.getElementById("modalTuto").style.display = "none"; }
+
+        async function chargerCoordonnees() {
+            try {
+                let res = await fetch('/api/geocache');
+                let data = await res.json();
+                document.getElementById("coordsText").innerText = data.coords;
+                document.getElementById("newCoordsInput").value = data.coords;
+            } catch(e) {}
+        }
+
+        async function modifierCoordonneesAdmin() {
+            let coords = document.getElementById("newCoordsInput").value;
+            try {
+                let res = await fetch('/api/admin/geocache', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ coords })
+                });
+                let data = await res.json();
+                if (data.success) {
+                    alert("Coordonnées mises à jour avec succès !");
+                    chargerCoordonnees();
+                }
+            } catch(e) {
+                alert("Erreur lors de la mise à jour");
+            }
+        }
 
         function lancerModeInvite() {
             modeInvite = true;
             currentUser = "Géocacheur";
             currentJetons = 500;
+            isAdmin = false;
             fermerTuto();
 
             document.getElementById("authScreen").style.display = "none";
@@ -108,6 +137,8 @@
             document.getElementById("displayUser").innerText = currentUser;
             document.getElementById("jetons").innerText = currentJetons;
             document.getElementById("coordsBox").style.display = "none";
+            document.getElementById("adminCoordsPanel").style.display = "none";
+            chargerCoordonnees();
         }
 
         async function verifierMonSolde() {
@@ -159,11 +190,21 @@
                 if (data.success) {
                     currentUser = data.user;
                     currentJetons = data.jetons;
+                    isAdmin = data.admin;
                     modeInvite = false;
+
                     document.getElementById("authScreen").style.display = "none";
                     document.getElementById("gameScreen").style.display = "block";
                     document.getElementById("displayUser").innerText = currentUser;
                     document.getElementById("jetons").innerText = currentJetons;
+                    
+                    if (isAdmin) {
+                        document.getElementById("adminCoordsPanel").style.display = "block";
+                    } else {
+                        document.getElementById("adminCoordsPanel").style.display = "none";
+                    }
+
+                    await chargerCoordonnees();
                     if (currentJetons >= 1000) document.getElementById("coordsBox").style.display = "block";
                 } else {
                     document.getElementById("authError").innerText = data.error;
