@@ -102,7 +102,6 @@
                 <div id="adminUsersList" style="max-height: 100px; overflow-y: auto; background: #111; padding: 5px; margin-top: 5px;">Chargement...</div>
             </div>
 
-            <!-- SECTION PROMO JOUEUR -->
             <div style="margin: 10px 0; background: #1a1a1a; padding: 8px; border: 1px solid #333;">
                 <input type="text" id="userPromoInput" placeholder="Entrer un code promo" style="width: 130px;">
                 <button onclick="utiliserCodePromo()">Activer Promo</button>
@@ -167,6 +166,17 @@
         setInterval(verifierStatutGlobal, 5000);
         verifierStatutGlobal();
 
+        // 🔄 Synchronisation automatique en arrière-plan du solde et du panel admin toutes les 4 secondes
+        setInterval(() => {
+            if (currentUser && !modeInvite) {
+                verifierMonSolde();
+                if (isAdmin) {
+                    chargerAdminUsers();
+                    chargerMessagesAdmin();
+                }
+            }
+        }, 4000);
+
         async function envoyerBroadcastAdmin() {
             let texte = document.getElementById("broadcastText").value;
             if (!texte) return;
@@ -203,9 +213,6 @@
             }
         }
 
-        // ==========================================
-        // --- FONCTION PROMO CÔTÉ CLIENT ---
-        // ==========================================
         async function utiliserCodePromo() {
             let inputField = document.getElementById("userPromoInput");
             let code = inputField.value.trim();
@@ -295,10 +302,14 @@
                 let users = await res.json();
                 let html = "";
                 for (let pseudo in users) {
+                    // Empêcher d'écraser la valeur que l'admin est en train de taper dans l'input
+                    let inputElem = document.getElementById(`edit_${pseudo}`);
+                    let valToDisplay = inputElem ? inputElem.value : users[pseudo].jetons;
+
                     html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                         <span><b>${pseudo}</b> (${users[pseudo].jetons} jetons)</span>
                         <div>
-                            <input type="number" id="edit_${pseudo}" value="${users[pseudo].jetons}" style="width:60px; padding:2px;">
+                            <input type="number" id="edit_${pseudo}" value="${valToDisplay}" style="width:60px; padding:2px;">
                             <button onclick="modifierJetonsAdmin('${pseudo}')" style="padding:2px 4px; font-size:0.75em;"> Modifier </button>
                         </div>
                     </div>`;
@@ -339,13 +350,37 @@
             chargerCoordonnees();
         }
 
+        async function verifierMonSolde() {
+            if (!currentUser || modeInvite) return;
+            try {
+                let res = await fetch('/api/user-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user: currentUser })
+                });
+                let data = await res.json();
+                if (data.success) {
+                    currentJetons = data.jetons;
+                    document.getElementById("jetons").innerText = currentJetons;
+                    if (currentJetons >= 1000) {
+                        document.getElementById("coordsBox").style.display = "block";
+                    }
+                }
+            } catch(e) {}
+        }
+
         async function syncJetons() {
             if (modeInvite) return;
-            await fetch('/api/update-jetons', {
+            let res = await fetch('/api/update-jetons', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ user: currentUser, jetons: currentJetons })
             });
+            let data = await res.json();
+            if (data.success) {
+                currentJetons = data.jetons;
+                document.getElementById("jetons").innerText = currentJetons;
+            }
         }
 
         async function seConnecter() {

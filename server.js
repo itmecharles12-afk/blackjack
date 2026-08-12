@@ -1,17 +1,17 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { ServerApiVersion } = require('mongodb');
 const mongoose = require('mongoose');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Middleware
+// --- MIDDLEWARES ---
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// URL de connexion MongoDB Atlas
+// --- CONNEXION MONGODB ---
 const uri = process.env.MONGODB_URI || "mongodb+srv://itmecharles12_db_user:MotDePasse123@cluster0.pwqnag6.mongodb.net/blackjackDB?retryWrites=true&w=majority";
 
 async function connectDB() {
@@ -26,7 +26,7 @@ async function connectDB() {
 }
 connectDB();
 
-// --- Schémas Mongoose ---
+// --- SCHÉMAS MONGOOSE ---
 const userSchema = new mongoose.Schema({
     pseudo: { type: String, required: true, unique: true },
     mdp: { type: String, required: true },
@@ -49,7 +49,7 @@ const promoSchema = new mongoose.Schema({
 });
 const Promo = mongoose.model('Promo', promoSchema);
 
-// --- Routes Auth & Utilisateurs ---
+// --- ROUTES AUTHENTIFICATION & UTILISATEURS ---
 app.post('/api/auth', async (req, res) => {
     try {
         const { user, mdp } = req.body;
@@ -64,7 +64,6 @@ app.post('/api/auth', async (req, res) => {
             return res.status(401).json({ error: "Mot de passe incorrect" });
         }
         
-        // Forcer les droits admin pour Charles
         if (user.toLowerCase() === 'charles' && !dbUser.admin) {
             dbUser.admin = true;
             await dbUser.save();
@@ -88,12 +87,16 @@ app.post('/api/user-info', async (req, res) => {
 app.post('/api/update-jetons', async (req, res) => {
     try {
         const { user, jetons } = req.body;
-        await User.updateOne({ pseudo: user }, { jetons });
-        res.json({ success: true });
+        const updatedUser = await User.findOneAndUpdate(
+            { pseudo: user }, 
+            { jetons: Number(jetons) }, 
+            { new: true }
+        );
+        res.json({ success: true, jetons: updatedUser.jetons });
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// --- Routes Admin ---
+// --- ROUTES ADMIN ---
 app.get('/api/admin/users', async (req, res) => {
     try {
         const users = await User.find();
@@ -112,11 +115,22 @@ app.post('/api/admin/set-jetons', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// --- Gestion des coordonnées Géocaching ---
+app.post('/api/admin/create-promo', async (req, res) => {
+    try {
+        const { code, jetons } = req.body;
+        if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
+        await Promo.findOneAndUpdate(
+            { code }, 
+            { jetons: Number(jetons) }, 
+            { upsert: true, new: true }
+        );
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+});
+
+// --- GÉOCACHING & STATUTS ---
 let geocacheData = { coords: "N 45° 30.123 W 73° 35.456" };
-
 app.get('/api/geocache', (req, res) => { res.json(geocacheData); });
-
 app.post('/api/admin/geocache', async (req, res) => {
     try {
         const { coords } = req.body;
@@ -126,18 +140,12 @@ app.post('/api/admin/geocache', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// --- Statut, Broadcast, Messages & Promos ---
 let siteStatus = { maintenance: false };
 let broadcastData = { actif: false, texte: "", auteur: "" };
 let broadcastId = 1;
 
 app.get('/api/status', (req, res) => {
     res.json({ ...siteStatus, broadcast: broadcastData, broadcastId });
-});
-
-app.post('/api/admin/maintenance', (req, res) => {
-    siteStatus.maintenance = req.body.maintenance;
-    res.json({ success: true });
 });
 
 app.post('/api/admin/broadcast', (req, res) => {
@@ -151,7 +159,6 @@ app.post('/api/admin/clear-broadcast', (req, res) => {
     res.json({ success: true });
 });
 
-// Messages de problèmes
 app.post('/api/messages', async (req, res) => {
     try {
         const { pseudo, message } = req.body;
@@ -169,20 +176,7 @@ app.get('/api/admin/messages', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// Codes Promos (Sécurisé anti-double usage)
-app.post('/api/admin/create-promo', async (req, res) => {
-    try {
-        const { code, jetons } = req.body;
-        if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
-        await Promo.findOneAndUpdate(
-            { code }, 
-            { jetons: Number(jetons) }, 
-            { upsert: true, new: true }
-        );
-        res.json({ success: true });
-    } catch(e) { res.status(500).json({ error: "Erreur" }); }
-});
-
+// --- ROUTE API PROMO ---
 app.post('/api/promo', async (req, res) => {
     try {
         const { code, user } = req.body;
@@ -191,22 +185,15 @@ app.post('/api/promo', async (req, res) => {
         const promo = await Promo.findOne({ code });
         if (!promo) return res.json({ success: false, error: "Code promo invalide" });
 
-        if (promo.utilisesPar.includes(user)) {
-            return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
-        }
-
-        // Mise à jour atomique pour bloquer les doublons simultanés
-        const updatedPromo = await Promo.findOneAndUpdate(
+        const updateResult = await Promo.updateOne(
             { code: code, utilisesPar: { $ne: user } },
-            { $push: { utilisesPar: user } },
-            { new: true }
+            { $addToSet: { utilisesPar: user } }
         );
 
-        if (!updatedPromo) {
+        if (updateResult.modifiedCount === 0) {
             return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
         }
 
-        // Incrémentation sécurisée des jetons utilisateur
         const dbUser = await User.findOneAndUpdate(
             { pseudo: user },
             { $inc: { jetons: promo.jetons } },
