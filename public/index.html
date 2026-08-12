@@ -173,7 +173,6 @@
         function ouvrirModalBroadcastUser() { document.getElementById("modalBroadcastUser").style.display = "flex"; }
         function fermerModalBroadcastUser() { document.getElementById("modalBroadcastUser").style.display = "none"; }
 
-        // Vérification périodique des statuts globaux (broadcast rouge)
         async function verifierStatutGlobal() {
             try {
                 let res = await fetch('/api/status');
@@ -231,6 +230,7 @@
             }
         }
 
+        // Utilisation d'un code promo avec mise à jour instantanée sans refresh
         async function utiliserCodePromo() {
             let code = document.getElementById("userPromoInput").value;
             if (!code) return;
@@ -238,19 +238,23 @@
                 let res = await fetch('/api/promo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
+                    body: JSON.stringify({ code, user: currentUser })
                 });
                 let data = await res.json();
                 if (data.success) {
-                    currentJetons += Number(data.jetons);
-                    alert(`Code validé ! +${data.jetons} jetons ajoutés.`);
+                    currentJetons = data.nouveauxJetons;
+                    document.getElementById("jetons").innerText = currentJetons;
+                    
+                    if (currentJetons >= 1000) {
+                        document.getElementById("coordsBox").style.display = "block";
+                    }
+
+                    alert(`Code validé ! +${data.jetonsAjoutes} jetons ajoutés.`);
                     document.getElementById("userPromoInput").value = "";
-                    syncJetons();
-                    verifierMonSolde();
                 } else {
                     alert(data.error || "Code invalide");
                 }
-            } catch(e) { alert("Erreur"); }
+            } catch(e) { alert("Erreur de connexion"); }
         }
 
         async function envoyerProbleme() {

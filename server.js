@@ -44,7 +44,8 @@ const Message = mongoose.model('Message', messageSchema);
 
 const promoSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true },
-    jetons: { type: Number, required: true }
+    jetons: { type: Number, required: true },
+    utilisesPar: { type: [String], default: [] } // Suivi des utilisateurs ayant utilisé le code
 });
 const Promo = mongoose.model('Promo', promoSchema);
 
@@ -125,7 +126,7 @@ app.post('/api/admin/geocache', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// --- Statut, Broadcast & Messages & Promos ---
+// --- Statut, Broadcast, Messages & Promos ---
 let siteStatus = { maintenance: false };
 let broadcastData = { actif: false, texte: "", auteur: "" };
 let broadcastId = 1;
@@ -168,23 +169,48 @@ app.get('/api/admin/messages', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// Codes Promos
+// Codes Promos (Vérification d'usage unique)
 app.post('/api/admin/create-promo', async (req, res) => {
     try {
         const { code, jetons } = req.body;
         if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
-        await Promo.findOneAndUpdate({ code }, { jetons: Number(jetons) }, { upsert: true, new: true });
+        await Promo.findOneAndUpdate(
+            { code }, 
+            { jetons: Number(jetons) }, 
+            { upsert: true, new: true }
+        );
         res.json({ success: true });
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
 app.post('/api/promo', async (req, res) => {
     try {
-        const { code } = req.body;
+        const { code, user } = req.body;
+        if (!code || !user) return res.status(400).json({ error: "Champs requis" });
+
         const promo = await Promo.findOne({ code });
         if (!promo) return res.json({ success: false, error: "Code promo invalide" });
-        res.json({ success: true, jetons: promo.jetons });
-    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+
+        // Vérifier si l'utilisateur a déjà utilisé ce code
+        if (promo.utilisesPar.includes(user)) {
+            return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
+        }
+
+        // Marquer comme utilisé pour cet utilisateur
+        promo.utilisesPar.push(user);
+        await promo.save();
+
+        // Mettre à jour les jetons de l'utilisateur
+        const dbUser = await User.findOne({ pseudo: user });
+        if (!dbUser) return res.status(404).json({ error: "Utilisateur non trouvé" });
+
+        dbUser.jetons += promo.jetons;
+        await dbUser.save();
+
+        res.json({ success: true, jetonsAjoutes: promo.jetons, nouveauxJetons: dbUser.jetons });
+    } catch(e) { 
+        res.status(500).json({ error: "Erreur serveur" }); 
+    }
 });
 
-app.listen(PORT, () => { console.log(`Serveur prêt sur le port ${PORT}`); });
+app.listen(PORT, () => { console.log(`Serveur prêt sur le port ${PORT}`); }););
