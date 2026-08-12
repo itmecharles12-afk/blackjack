@@ -49,6 +49,12 @@ const promoSchema = new mongoose.Schema({
 });
 const Promo = mongoose.model('Promo', promoSchema);
 
+// Schéma pour stocker les coordonnées de la géocache en base de données
+const geocacheSchema = new mongoose.Schema({
+    coords: { type: String, required: true }
+});
+const Geocache = mongoose.model('Geocache', geocacheSchema);
+
 // --- ROUTES AUTHENTIFICATION & UTILISATEURS ---
 app.post('/api/auth', async (req, res) => {
     try {
@@ -129,14 +135,32 @@ app.post('/api/admin/create-promo', async (req, res) => {
 });
 
 // --- GÉOCACHING & STATUTS ---
-let geocacheData = { coords: "N 45° 30.123 W 73° 35.456" };
-app.get('/api/geocache', (req, res) => { res.json(geocacheData); });
+app.get('/api/geocache', async (req, res) => { 
+    try {
+        let geo = await Geocache.findOne();
+        if (!geo) {
+            // Valeur par défaut initiale si rien n'est encore en base
+            geo = await Geocache.create({ coords: "N 45° 30.123 W 73° 35.456" });
+        }
+        res.json({ coords: geo.coords }); 
+    } catch(e) {
+        res.status(500).json({ error: "Erreur" });
+    }
+});
+
 app.post('/api/admin/geocache', async (req, res) => {
     try {
         const { coords } = req.body;
         if (!coords) return res.status(400).json({ error: "Coordonnées requises" });
-        geocacheData.coords = coords;
-        res.json({ success: true, coords: geocacheData.coords });
+        
+        // Enregistre ou met à jour l'unique document de coordonnées dans MongoDB
+        let geo = await Geocache.findOneAndUpdate(
+            {}, 
+            { coords }, 
+            { upsert: true, new: true }
+        );
+        
+        res.json({ success: true, coords: geo.coords });
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
