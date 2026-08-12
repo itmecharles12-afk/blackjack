@@ -44,12 +44,10 @@ const Message = mongoose.model('Message', messageSchema);
 
 const promoSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true },
-    jetons: { type: Number, required: true },
-    utilisesPar: { type: [String], default: [] }
+    jetons: { type: Number, required: true }
 });
 const Promo = mongoose.model('Promo', promoSchema);
 
-// Schéma pour stocker les coordonnées de la géocache en base de données
 const geocacheSchema = new mongoose.Schema({
     coords: { type: String, required: true }
 });
@@ -81,6 +79,22 @@ app.post('/api/auth', async (req, res) => {
     }
 });
 
+// Route invité robuste pour réinitialiser et garantir l'existence de "Géocacheur"
+app.post('/api/invite-login', async (req, res) => {
+    try {
+        let dbUser = await User.findOne({ pseudo: "Géocacheur" });
+        if (!dbUser) {
+            dbUser = new User({ pseudo: "Géocacheur", mdp: "invite", jetons: 500 });
+        } else {
+            dbUser.jetons = 500;
+        }
+        await dbUser.save();
+        res.json({ success: true, user: "Géocacheur", jetons: 500 });
+    } catch(e) {
+        res.status(500).json({ error: "Erreur serveur" });
+    }
+});
+
 app.post('/api/user-info', async (req, res) => {
     try {
         const { user } = req.body;
@@ -96,7 +110,7 @@ app.post('/api/update-jetons', async (req, res) => {
         const updatedUser = await User.findOneAndUpdate(
             { pseudo: user }, 
             { jetons: Number(jetons) }, 
-            { new: true }
+            { new: true, upsert: true }
         );
         res.json({ success: true, jetons: updatedUser.jetons });
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
@@ -115,7 +129,7 @@ app.get('/api/admin/users', async (req, res) => {
 app.post('/api/admin/set-jetons', async (req, res) => {
     try {
         const { targetUser, jetons } = req.body;
-        await User.updateOne({ pseudo: targetUser }, { jetons: Number(jetons) });
+        await User.updateOne({ pseudo: targetUser }, { jetons: Number(jetons) }, { upsert: true });
         const updated = await User.findOne({ pseudo: targetUser });
         res.json({ success: true, jetons: updated.jetons });
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
@@ -126,7 +140,7 @@ app.post('/api/admin/create-promo', async (req, res) => {
         const { code, jetons } = req.body;
         if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
         await Promo.findOneAndUpdate(
-            { code }, 
+            { code: code.toUpperCase() }, 
             { jetons: Number(jetons) }, 
             { upsert: true, new: true }
         );
@@ -139,7 +153,6 @@ app.get('/api/geocache', async (req, res) => {
     try {
         let geo = await Geocache.findOne();
         if (!geo) {
-            // Valeur par défaut initiale si rien n'est encore en base
             geo = await Geocache.create({ coords: "N 45° 30.123 W 73° 35.456" });
         }
         res.json({ coords: geo.coords }); 
@@ -152,14 +165,7 @@ app.post('/api/admin/geocache', async (req, res) => {
     try {
         const { coords } = req.body;
         if (!coords) return res.status(400).json({ error: "Coordonnées requises" });
-        
-        // Enregistre ou met à jour l'unique document de coordonnées dans MongoDB
-        let geo = await Geocache.findOneAndUpdate(
-            {}, 
-            { coords }, 
-            { upsert: true, new: true }
-        );
-        
+        let geo = await Geocache.findOneAndUpdate({}, { coords }, { upsert: true, new: true });
         res.json({ success: true, coords: geo.coords });
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
@@ -200,31 +206,25 @@ app.get('/api/admin/messages', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// --- ROUTE API PROMO ---
+// --- ROUTE API PROMO (Réutilisable à l'infini & Auto-création) ---
 app.post('/api/promo', async (req, res) => {
     try {
         const { code, user } = req.body;
         if (!code || !user) return res.status(400).json({ error: "Champs requis" });
 
-        const promo = await Promo.findOne({ code });
+        const promo = await Promo.findOne({ code: code.toUpperCase() });
         if (!promo) return res.json({ success: false, error: "Code promo invalide" });
 
-        const updateResult = await Promo.updateOne(
-            { code: code, utilisesPar: { $ne: user } },
-            { $addToSet: { utilisesPar: user } }
-        );
-
-        if (updateResult.modifiedCount === 0) {
-            return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
-        }
-
-        const dbUser = await User.findOneAndUpdate(
+        let dbUser = await User.findOneAndUpdate(
             { pseudo: user },
             { $inc: { jetons: promo.jetons } },
             { new: true }
         );
 
-        if (!dbUser) return res.status(404).json({ error: "Utilisateur non trouvé" });
+        if (!dbUser) {
+            dbUser = new User({ pseudo: user, mdp: "auto", jetons: 500 + promo.jetons });
+            await dbUser.save();
+        }
 
         res.json({ success: true, jetonsAjoutes: promo.jetons, nouveauxJetons: dbUser.jetons });
     } catch(e) { 

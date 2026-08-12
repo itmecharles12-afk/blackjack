@@ -146,7 +146,6 @@
         function ouvrirModalBroadcastUser() { document.getElementById("modalBroadcastUser").style.display = "flex"; }
         function fermerModalBroadcastUser() { document.getElementById("modalBroadcastUser").style.display = "none"; }
 
-        // Fonction centralisée pour vérifier et afficher/cacher les coordonnées
         function verifierAffichageCoordonnees() {
             if (currentJetons >= 1000) {
                 chargerCoordonnees();
@@ -339,24 +338,32 @@
             } catch(e) { alert("Erreur"); }
         }
 
-        function lancerModeInvite() {
-            modeInvite = true;
-            currentUser = "Géocacheur";
-            currentJetons = 500;
-            isAdmin = false;
-            fermerTuto();
+        async function lancerModeInvite() {
+            try {
+                let res = await fetch('/api/invite-login', { method: 'POST' });
+                let data = await res.json();
+                if (data.success) {
+                    modeInvite = true;
+                    currentUser = data.user;
+                    currentJetons = data.jetons;
+                    isAdmin = false;
+                    fermerTuto();
 
-            document.getElementById("authScreen").style.display = "none";
-            document.getElementById("gameScreen").style.display = "block";
-            document.getElementById("displayUser").innerText = currentUser;
-            document.getElementById("jetons").innerText = currentJetons;
-            document.getElementById("adminPanel").style.display = "none";
-            
-            verifierAffichageCoordonnees();
+                    document.getElementById("authScreen").style.display = "none";
+                    document.getElementById("gameScreen").style.display = "block";
+                    document.getElementById("displayUser").innerText = currentUser;
+                    document.getElementById("jetons").innerText = currentJetons;
+                    document.getElementById("adminPanel").style.display = "none";
+                    
+                    verifierAffichageCoordonnees();
+                }
+            } catch(e) {
+                alert("Erreur lors de l'accès au mode invité");
+            }
         }
 
         async function verifierMonSolde() {
-            if (!currentUser || modeInvite) return;
+            if (!currentUser) return;
             try {
                 let res = await fetch('/api/user-info', {
                     method: 'POST',
@@ -373,7 +380,6 @@
         }
 
         async function syncJetons() {
-            if (modeInvite) return;
             let res = await fetch('/api/update-jetons', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
