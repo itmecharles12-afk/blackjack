@@ -45,7 +45,7 @@ const Message = mongoose.model('Message', messageSchema);
 const promoSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true },
     jetons: { type: Number, required: true },
-    utilisesPar: { type: [String], default: [] } // Suivi des utilisateurs ayant utilisé le code
+    utilisesPar: { type: [String], default: [] }
 });
 const Promo = mongoose.model('Promo', promoSchema);
 
@@ -169,7 +169,7 @@ app.get('/api/admin/messages', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// Codes Promos (Vérification d'usage unique)
+// Codes Promos (Sécurisé anti-double usage)
 app.post('/api/admin/create-promo', async (req, res) => {
     try {
         const { code, jetons } = req.body;
@@ -191,21 +191,29 @@ app.post('/api/promo', async (req, res) => {
         const promo = await Promo.findOne({ code });
         if (!promo) return res.json({ success: false, error: "Code promo invalide" });
 
-        // Vérifier si l'utilisateur a déjà utilisé ce code
         if (promo.utilisesPar.includes(user)) {
             return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
         }
 
-        // Marquer comme utilisé pour cet utilisateur
-        promo.utilisesPar.push(user);
-        await promo.save();
+        // Mise à jour atomique pour bloquer les doublons simultanés
+        const updatedPromo = await Promo.findOneAndUpdate(
+            { code: code, utilisesPar: { $ne: user } },
+            { $push: { utilisesPar: user } },
+            { new: true }
+        );
 
-        // Mettre à jour les jetons de l'utilisateur
-        const dbUser = await User.findOne({ pseudo: user });
+        if (!updatedPromo) {
+            return res.json({ success: false, error: "Tu as déjà utilisé ce code promo !" });
+        }
+
+        // Incrémentation sécurisée des jetons utilisateur
+        const dbUser = await User.findOneAndUpdate(
+            { pseudo: user },
+            { $inc: { jetons: promo.jetons } },
+            { new: true }
+        );
+
         if (!dbUser) return res.status(404).json({ error: "Utilisateur non trouvé" });
-
-        dbUser.jetons += promo.jetons;
-        await dbUser.save();
 
         res.json({ success: true, jetonsAjoutes: promo.jetons, nouveauxJetons: dbUser.jetons });
     } catch(e) { 
@@ -213,4 +221,4 @@ app.post('/api/promo', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => { console.log(`Serveur prêt sur le port ${PORT}`); }););
+app.listen(PORT, () => { console.log(`Serveur prêt sur le port ${PORT}`); });

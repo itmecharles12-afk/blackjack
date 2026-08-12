@@ -16,7 +16,6 @@
         .geocache-icon-corner { position: fixed; top: 20px; right: 20px; width: 45px; height: 45px; background: #000; border: 2px solid #2ed573; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 999; }
         #support-btn { position: fixed; bottom: 20px; left: 20px; background: #2ed573; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; z-index: 998; }
         
-        /* Icône clignotante rouge Broadcast */
         #broadcast-icon { position: fixed; top: 20px; right: 80px; width: 45px; height: 45px; background: #500; border: 2px solid #ff3838; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 999; animation: pulseRed 1.5s infinite; }
         @keyframes pulseRed { 0% { border-color: #ff3838; box-shadow: 0 0 0 0 rgba(255, 56, 56, 0.7); } 70% { border-color: #ff4d4d; box-shadow: 0 0 0 10px rgba(255, 56, 56, 0); } 100% { border-color: #ff3838; box-shadow: 0 0 0 0 rgba(255, 56, 56, 0); } }
 
@@ -230,9 +229,8 @@
             }
         }
 
-        // Utilisation d'un code promo avec mise à jour instantanée sans refresh
         async function utiliserCodePromo() {
-            let code = document.getElementById("userPromoInput").value;
+            let code = document.getElementById("userPromoInput").value.trim();
             if (!code) return;
             try {
                 let res = await fetch('/api/promo', {
@@ -242,7 +240,7 @@
                 });
                 let data = await res.json();
                 if (data.success) {
-                    currentJetons = data.nouveauxJetons;
+                    currentJetons = Number(data.nouveauxJetons);
                     document.getElementById("jetons").innerText = currentJetons;
                     
                     if (currentJetons >= 1000) {
@@ -251,6 +249,7 @@
 
                     alert(`Code validé ! +${data.jetonsAjoutes} jetons ajoutés.`);
                     document.getElementById("userPromoInput").value = "";
+                    verifierMonSolde();
                 } else {
                     alert(data.error || "Code invalide");
                 }
