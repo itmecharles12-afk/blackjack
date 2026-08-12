@@ -25,40 +25,34 @@
 </head>
 <body>
 
-    <div class="geocache-icon-corner" onclick="ouvrirTutoGeocaching()" title="Tutoriel & Mode Invité">
+    <div class="geocache-icon-corner" onclick="ouvrirTutoGeocaching()" title="Tutoriel">
         <div style="font-size: 20px;">📍</div>
     </div>
 
-    <!-- Icône rouge clignotante globale -->
-    <div id="broadcast-icon" onclick="ouvrirModalBroadcastUser()" title="Annonce importante !">
+    <div id="broadcast-icon" onclick="ouvrirModalBroadcastUser()" title="Annonce">
         <div style="font-size: 20px;">📢</div>
     </div>
 
-    <!-- Modale Affichage Broadcast Joueur -->
     <div class="broadcast-modal" id="modalBroadcastUser">
         <div class="broadcast-content" style="border-color: #ff3838;">
-            <h3 style="color: #ff3838;">ANNONCE DE L'ADMIN</h3>
+            <h3 style="color: #ff3838;">ANNONCE</h3>
             <p id="broadcastUserText" style="color: #fff; margin: 15px 0;"></p>
             <p id="broadcastUserAuthor" style="font-size: 0.8em; color: #888;"></p>
             <button onclick="fermerModalBroadcastUser()" style="background:#444;">Fermer</button>
         </div>
     </div>
 
-    <!-- Modale Tuto / Mode Invité -->
     <div class="broadcast-modal" id="modalTuto">
         <div class="broadcast-content">
             <h3>GÉOCACHING</h3>
             <p style="text-align: left; font-size: 0.9em; color: #aaa;">
-                1. Règle : Fais du Blackjack pour accumuler des points.<br>
-                2. Progression : Mode invité ou connecté.<br><br>
-                <b style="color: #ffcc00;">OBJECTIF :</b> Atteins <b>1000 jetons</b> pour débloquer les coordonnées de la géocache !
+                Atteins <b>1000 jetons</b> pour débloquer les coordonnées de la géocache !
             </p>
-            <button onclick="lancerModeInvite()" style="background:#2ed573; border-color:#26af5f; width: 100%; margin-bottom: 10px;">Jouer en mode Géocaching (Invité)</button>
+            <button onclick="lancerModeInvite()" style="background:#2ed573; border-color:#26af5f; width: 100%; margin-bottom: 10px;">Jouer en mode Invité</button>
             <button onclick="fermerTuto()" style="background:#444; width: 100%;">Fermer</button>
         </div>
     </div>
 
-    <!-- Modale Problème / Support -->
     <div class="broadcast-modal" id="modalProbleme">
         <div class="broadcast-content">
             <h3>Signaler un problème</h3>
@@ -83,53 +77,37 @@
         <div id="gameScreen" style="display:none;">
             <p>Joueur : <b id="displayUser"></b> | Jetons : <span id="jetons" style="color:#00ffcc;">500</span> <button onclick="deconnexion()" style="font-size:0.6em; padding:3px 6px; margin-left:10px;">Quitter</button></p>
             
-            <!-- PANNEAU ADMIN COMPLET -->
             <div id="adminPanel" style="display:none; margin: 15px 0; padding: 15px; border: 1px dashed #ffcc00; background: #221a00; text-align: left; font-size: 0.85em;">
-                <p style="color: #ffcc00; margin: 0 0 10px 0; font-weight: bold; text-align: center;">--- PANNEAU ADMINISTRATEUR ---</p>
-                
-                <!-- Coordonnées -->
-                <label style="color: #ffcc00;">Modifier coordonnées géocache :</label>
+                <p style="color: #ffcc00; margin: 0 0 10px 0; font-weight: bold; text-align: center;">--- PANNEAU ADMIN ---</p>
+                <label style="color: #ffcc00;">Coordonnées géocache :</label>
                 <div style="display: flex; margin-bottom: 10px; margin-top: 5px;">
                     <input type="text" id="newCoordsInput" placeholder="Coordonnées..." style="flex: 1; margin: 0 5px 0 0;">
                     <button onclick="modifierCoordonneesAdmin()">Mettre à jour</button>
                 </div>
-
-                <!-- Broadcast Global -->
-                <label style="color: #ffcc00;">Envoyer un message rouge global (Broadcast) :</label>
+                <label style="color: #ffcc00;">Broadcast :</label>
                 <div style="margin-top: 5px; margin-bottom: 10px;">
-                    <input type="text" id="broadcastText" placeholder="Texte de l'annonce..." style="width: 70%;">
+                    <input type="text" id="broadcastText" placeholder="Texte..." style="width: 70%;">
                     <button onclick="envoyerBroadcastAdmin()">Diffuser</button>
                     <button onclick="effacerBroadcastAdmin()" style="background:#600;">Retirer</button>
                 </div>
-
-                <!-- Création Code Promo -->
                 <label style="color: #ffcc00;">Créer un code promo :</label>
                 <div style="margin-top: 5px; margin-bottom: 10px;">
                     <input type="text" id="promoCodeInput" placeholder="Code" style="width: 35%;">
                     <input type="number" id="promoJetonsInput" placeholder="Jetons" style="width: 30%;">
                     <button onclick="creerPromoAdmin()">Créer</button>
                 </div>
-
-                <!-- Messages de problèmes reçus -->
-                <label style="color: #ffcc00;">Messages de problèmes reçus :</label>
-                <div id="adminMessagesList" style="max-height: 90px; overflow-y: auto; background: #111; padding: 5px; margin-top: 5px; margin-bottom: 10px;">
-                    Chargement des messages...
-                </div>
-
-                <!-- Gestion Utilisateurs -->
-                <label style="color: #ffcc00;">Gestion des joueurs et jetons :</label>
-                <div id="adminUsersList" style="max-height: 100px; overflow-y: auto; background: #111; padding: 5px; margin-top: 5px;">
-                    Chargement des utilisateurs...
-                </div>
+                <label style="color: #ffcc00;">Messages reçus :</label>
+                <div id="adminMessagesList" style="max-height: 90px; overflow-y: auto; background: #111; padding: 5px; margin-top: 5px; margin-bottom: 10px;">Chargement...</div>
+                <label style="color: #ffcc00;">Joueurs :</label>
+                <div id="adminUsersList" style="max-height: 100px; overflow-y: auto; background: #111; padding: 5px; margin-top: 5px;">Chargement...</div>
             </div>
 
-            <!-- Validation Code Promo pour Joueurs -->
+            <!-- SECTION PROMO JOUEUR -->
             <div style="margin: 10px 0; background: #1a1a1a; padding: 8px; border: 1px solid #333;">
                 <input type="text" id="userPromoInput" placeholder="Entrer un code promo" style="width: 130px;">
                 <button onclick="utiliserCodePromo()">Activer Promo</button>
             </div>
 
-            <!-- Boîte Coordonnées Débloquées -->
             <div id="coordsBox" style="display:none; margin: 15px 0; padding: 10px; border: 2px solid #2ed573; background: #002200;">
                 <p style="color: #2ed573; font-weight: bold; margin: 0;">📍 Coordonnées de la Géocache :</p>
                 <p id="coordsText" style="color: #fff; margin: 5px 0 0 0; font-weight: bold;"></p>
@@ -144,16 +122,13 @@
             <div id="gameArea" style="display:none;">
                 <p style="margin:5px 0; color:#888;">Banque : <span id="scoreBanque">0</span></p>
                 <div class="cards-display" id="cartesBanque">-</div>
-
                 <p style="margin:5px 0; color:#888;">Vos cartes : <span id="scoreJoueur" style="color:#00ffcc;">0</span></p>
                 <div class="cards-display" id="cartesJoueur">-</div>
-
                 <div id="actionButtons">
                     <button onclick="tirerCarte()">Carte (+)</button>
                     <button onclick="tenirPartie()">Rester</button>
                 </div>
             </div>
-
             <div id="messageResultat" style="color: #ffcc00; margin: 15px 0; font-weight: bold;"></div>
         </div>
     </div>
@@ -180,7 +155,6 @@
                     document.getElementById("broadcastUserText").innerText = data.broadcast.texte;
                     document.getElementById("broadcastUserAuthor").innerText = "Par : " + data.broadcast.auteur;
                     document.getElementById("broadcast-icon").style.display = "flex";
-                    
                     if (data.broadcastId !== lastBroadcastIdSeen) {
                         lastBroadcastIdSeen = data.broadcastId;
                         ouvrirModalBroadcastUser();
@@ -201,7 +175,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ texte, auteur: currentUser })
             });
-            alert("Annonce diffusée à tout le monde !");
+            alert("Annonce diffusée !");
             document.getElementById("broadcastText").value = "";
             verifierStatutGlobal();
         }
@@ -223,15 +197,20 @@
             });
             let data = await res.json();
             if (data.success) {
-                alert("Code promo créé avec succès !");
+                alert("Code promo créé !");
                 document.getElementById("promoCodeInput").value = "";
                 document.getElementById("promoJetonsInput").value = "";
             }
         }
 
+        // ==========================================
+        // --- FONCTION PROMO CÔTÉ CLIENT ---
+        // ==========================================
         async function utiliserCodePromo() {
-            let code = document.getElementById("userPromoInput").value.trim();
+            let inputField = document.getElementById("userPromoInput");
+            let code = inputField.value.trim();
             if (!code) return;
+
             try {
                 let res = await fetch('/api/promo', {
                     method: 'POST',
@@ -239,6 +218,7 @@
                     body: JSON.stringify({ code, user: currentUser })
                 });
                 let data = await res.json();
+                
                 if (data.success) {
                     currentJetons = Number(data.nouveauxJetons);
                     document.getElementById("jetons").innerText = currentJetons;
@@ -248,12 +228,14 @@
                     }
 
                     alert(`Code validé ! +${data.jetonsAjoutes} jetons ajoutés.`);
-                    document.getElementById("userPromoInput").value = "";
-                    verifierMonSolde();
+                    inputField.value = "";
                 } else {
-                    alert(data.error || "Code invalide");
+                    alert(data.error || "Code invalide ou déjà utilisé");
+                    inputField.value = "";
                 }
-            } catch(e) { alert("Erreur de connexion"); }
+            } catch(e) { 
+                alert("Erreur de connexion au serveur"); 
+            }
         }
 
         async function envoyerProbleme() {
@@ -264,7 +246,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ pseudo: currentUser || "Anonyme", message: msg })
             });
-            alert("Problème envoyé avec succès !");
+            alert("Problème envoyé !");
             fermerModalProbleme();
             document.getElementById("messageProbleme").value = "";
         }
@@ -276,14 +258,10 @@
                 let html = "";
                 messages.forEach(m => {
                     let dateStr = new Date(m.date).toLocaleTimeString();
-                    html += `<div style="border-bottom: 1px solid #333; margin-bottom: 4px; padding-bottom: 2px;">
-                        <b>[${dateStr}] ${m.pseudo} :</b> ${m.message}
-                    </div>`;
+                    html += `<div style="border-bottom: 1px solid #333; margin-bottom: 4px; padding-bottom: 2px;"><b>[${dateStr}] ${m.pseudo} :</b> ${m.message}</div>`;
                 });
                 document.getElementById("adminMessagesList").innerHTML = html || "Aucun message.";
-            } catch(e) {
-                document.getElementById("adminMessagesList").innerText = "Erreur chargement messages.";
-            }
+            } catch(e) {}
         }
 
         async function chargerCoordonnees() {
@@ -305,7 +283,7 @@
                 });
                 let data = await res.json();
                 if (data.success) {
-                    alert("Coordonnées mises à jour avec succès !");
+                    alert("Coordonnées mises à jour !");
                     chargerCoordonnees();
                 }
             } catch(e) { alert("Erreur"); }
@@ -361,28 +339,6 @@
             chargerCoordonnees();
         }
 
-        async function verifierMonSolde() {
-            if (!currentUser) return;
-            if (modeInvite) {
-                document.getElementById("jetons").innerText = currentJetons;
-                if (currentJetons >= 1000) document.getElementById("coordsBox").style.display = "block";
-                return;
-            }
-            try {
-                let res = await fetch('/api/user-info', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user: currentUser })
-                });
-                let data = await res.json();
-                if (data.success) {
-                    currentJetons = data.jetons;
-                    document.getElementById("jetons").innerText = currentJetons;
-                    if (currentJetons >= 1000) document.getElementById("coordsBox").style.display = "block";
-                }
-            } catch(e) {}
-        }
-
         async function syncJetons() {
             if (modeInvite) return;
             await fetch('/api/update-jetons', {
@@ -427,7 +383,7 @@
                     document.getElementById("authError").innerText = data.error;
                 }
             } catch (e) {
-                document.getElementById("authError").innerText = "Erreur de connexion au serveur/BDD.";
+                document.getElementById("authError").innerText = "Erreur de connexion au serveur.";
             }
         }
 
@@ -452,7 +408,7 @@
 
             currentJetons -= mise;
             syncJetons();
-            verifierMonSolde();
+            document.getElementById("jetons").innerText = currentJetons;
 
             mainJoueur = [piocherCarte(), piocherCarte()];
             mainBanque = [piocherCarte(), piocherCarte()];
@@ -509,7 +465,7 @@
                 finDePartie("La banque l'emporte.");
             }
             syncJetons();
-            verifierMonSolde();
+            document.getElementById("jetons").innerText = currentJetons;
         }
 
         function finDePartie(msg) {
