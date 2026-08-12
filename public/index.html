@@ -146,6 +146,16 @@
         function ouvrirModalBroadcastUser() { document.getElementById("modalBroadcastUser").style.display = "flex"; }
         function fermerModalBroadcastUser() { document.getElementById("modalBroadcastUser").style.display = "none"; }
 
+        // Fonction centralisée pour vérifier et afficher/cacher les coordonnées
+        function verifierAffichageCoordonnees() {
+            if (currentJetons >= 1000) {
+                chargerCoordonnees();
+                document.getElementById("coordsBox").style.display = "block";
+            } else {
+                document.getElementById("coordsBox").style.display = "none";
+            }
+        }
+
         async function verifierStatutGlobal() {
             try {
                 let res = await fetch('/api/status');
@@ -166,7 +176,6 @@
         setInterval(verifierStatutGlobal, 5000);
         verifierStatutGlobal();
 
-        // 🔄 Synchronisation automatique en arrière-plan du solde et du panel admin toutes les 4 secondes
         setInterval(() => {
             if (currentUser && !modeInvite) {
                 verifierMonSolde();
@@ -229,10 +238,7 @@
                 if (data.success) {
                     currentJetons = Number(data.nouveauxJetons);
                     document.getElementById("jetons").innerText = currentJetons;
-                    
-                    if (currentJetons >= 1000) {
-                        document.getElementById("coordsBox").style.display = "block";
-                    }
+                    verifierAffichageCoordonnees();
 
                     alert(`Code validé ! +${data.jetonsAjoutes} jetons ajoutés.`);
                     inputField.value = "";
@@ -302,7 +308,6 @@
                 let users = await res.json();
                 let html = "";
                 for (let pseudo in users) {
-                    // Empêcher d'écraser la valeur que l'admin est en train de taper dans l'input
                     let inputElem = document.getElementById(`edit_${pseudo}`);
                     let valToDisplay = inputElem ? inputElem.value : users[pseudo].jetons;
 
@@ -345,9 +350,9 @@
             document.getElementById("gameScreen").style.display = "block";
             document.getElementById("displayUser").innerText = currentUser;
             document.getElementById("jetons").innerText = currentJetons;
-            document.getElementById("coordsBox").style.display = "none";
             document.getElementById("adminPanel").style.display = "none";
-            chargerCoordonnees();
+            
+            verifierAffichageCoordonnees();
         }
 
         async function verifierMonSolde() {
@@ -362,9 +367,7 @@
                 if (data.success) {
                     currentJetons = data.jetons;
                     document.getElementById("jetons").innerText = currentJetons;
-                    if (currentJetons >= 1000) {
-                        document.getElementById("coordsBox").style.display = "block";
-                    }
+                    verifierAffichageCoordonnees();
                 }
             } catch(e) {}
         }
@@ -380,6 +383,7 @@
             if (data.success) {
                 currentJetons = data.jetons;
                 document.getElementById("jetons").innerText = currentJetons;
+                verifierAffichageCoordonnees();
             }
         }
 
@@ -412,8 +416,7 @@
                         document.getElementById("adminPanel").style.display = "none";
                     }
 
-                    await chargerCoordonnees();
-                    if (currentJetons >= 1000) document.getElementById("coordsBox").style.display = "block";
+                    verifierAffichageCoordonnees();
                 } else {
                     document.getElementById("authError").innerText = data.error;
                 }
@@ -444,6 +447,7 @@
             currentJetons -= mise;
             syncJetons();
             document.getElementById("jetons").innerText = currentJetons;
+            verifierAffichageCoordonnees();
 
             mainJoueur = [piocherCarte(), piocherCarte()];
             mainBanque = [piocherCarte(), piocherCarte()];
@@ -501,6 +505,7 @@
             }
             syncJetons();
             document.getElementById("jetons").innerText = currentJetons;
+            verifierAffichageCoordonnees();
         }
 
         function finDePartie(msg) {
