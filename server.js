@@ -79,7 +79,6 @@ app.post('/api/auth', async (req, res) => {
     }
 });
 
-// Route invité robuste pour réinitialiser et garantir l'existence de "Géocacheur"
 app.post('/api/invite-login', async (req, res) => {
     try {
         let dbUser = await User.findOne({ pseudo: "Géocacheur" });
@@ -139,8 +138,12 @@ app.post('/api/admin/create-promo', async (req, res) => {
     try {
         const { code, jetons } = req.body;
         if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
+        
+        // Nettoie et met en majuscules pour éviter les erreurs de saisie
+        const cleanCode = code.trim().toUpperCase();
+        
         await Promo.findOneAndUpdate(
-            { code: code.toUpperCase() }, 
+            { code: cleanCode }, 
             { jetons: Number(jetons) }, 
             { upsert: true, new: true }
         );
@@ -206,13 +209,16 @@ app.get('/api/admin/messages', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// --- ROUTE API PROMO (Réutilisable à l'infini & Auto-création) ---
+// --- ROUTE API PROMO CORRIGÉE ---
 app.post('/api/promo', async (req, res) => {
     try {
         const { code, user } = req.body;
         if (!code || !user) return res.status(400).json({ error: "Champs requis" });
 
-        const promo = await Promo.findOne({ code: code.toUpperCase() });
+        // Nettoie les espaces invisibles et met en majuscules pour correspondre exactement à la DB
+        const cleanCode = code.trim().toUpperCase();
+
+        const promo = await Promo.findOne({ code: cleanCode });
         if (!promo) return res.json({ success: false, error: "Code promo invalide" });
 
         let dbUser = await User.findOneAndUpdate(
