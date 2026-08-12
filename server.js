@@ -14,15 +14,10 @@ app.use(express.static(path.join(__dirname, 'public')));
 // URL de connexion MongoDB Atlas
 const uri = process.env.MONGODB_URI || "mongodb+srv://itmecharles12_db_user:MotDePasse123@cluster0.pwqnag6.mongodb.net/blackjackDB?retryWrites=true&w=majority";
 
-// Connexion Mongoose / MongoDB
 async function connectDB() {
     try {
         await mongoose.connect(uri, {
-            serverApi: {
-                version: ServerApiVersion.v1,
-                strict: true,
-                deprecationErrors: true,
-            }
+            serverApi: { version: ServerApiVersion.v1, strict: true, deprecationErrors: true }
         });
         console.log("Connecté à MongoDB avec succès !");
     } catch (err) {
@@ -31,7 +26,7 @@ async function connectDB() {
 }
 connectDB();
 
-// --- Schéma et Modèle Utilisateur ---
+// --- Schémas Mongoose ---
 const userSchema = new mongoose.Schema({
     pseudo: { type: String, required: true, unique: true },
     mdp: { type: String, required: true },
@@ -40,7 +35,6 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
-// --- Schéma et Modèle Messages (Problèmes) ---
 const messageSchema = new mongoose.Schema({
     pseudo: { type: String, required: true },
     message: { type: String, required: true },
@@ -48,7 +42,13 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', messageSchema);
 
-// --- Routes Application ---
+const promoSchema = new mongoose.Schema({
+    code: { type: String, required: true, unique: true },
+    jetons: { type: Number, required: true }
+});
+const Promo = mongoose.model('Promo', promoSchema);
+
+// --- Routes Auth & Utilisateurs ---
 app.post('/api/auth', async (req, res) => {
     try {
         const { user, mdp } = req.body;
@@ -92,14 +92,12 @@ app.post('/api/update-jetons', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// --- Routes Admin d'origine + Géocaching ---
+// --- Routes Admin ---
 app.get('/api/admin/users', async (req, res) => {
     try {
         const users = await User.find();
         let obj = {};
-        users.forEach(u => {
-            obj[u.pseudo] = { jetons: u.jetons, admin: u.admin };
-        });
+        users.forEach(u => { obj[u.pseudo] = { jetons: u.jetons, admin: u.admin }; });
         res.json(obj);
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
@@ -113,12 +111,10 @@ app.post('/api/admin/set-jetons', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// Gestion des coordonnées Géocaching
+// --- Gestion des coordonnées Géocaching ---
 let geocacheData = { coords: "N 45° 30.123 W 73° 35.456" };
 
-app.get('/api/geocache', (req, res) => {
-    res.json(geocacheData);
-});
+app.get('/api/geocache', (req, res) => { res.json(geocacheData); });
 
 app.post('/api/admin/geocache', async (req, res) => {
     try {
@@ -126,12 +122,10 @@ app.post('/api/admin/geocache', async (req, res) => {
         if (!coords) return res.status(400).json({ error: "Coordonnées requises" });
         geocacheData.coords = coords;
         res.json({ success: true, coords: geocacheData.coords });
-    } catch(e) {
-        res.status(500).json({ error: "Erreur" });
-    }
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// Variables globales et autres routes
+// --- Statut, Broadcast & Messages & Promos ---
 let siteStatus = { maintenance: false };
 let broadcastData = { actif: false, texte: "", auteur: "" };
 let broadcastId = 1;
@@ -156,33 +150,41 @@ app.post('/api/admin/clear-broadcast', (req, res) => {
     res.json({ success: true });
 });
 
-// --- Gestion des messages / problèmes ---
+// Messages de problèmes
 app.post('/api/messages', async (req, res) => {
     try {
         const { pseudo, message } = req.body;
         if (!message) return res.status(400).json({ error: "Message vide" });
-        
-        const newMsg = new Message({
-            pseudo: pseudo || "Anonyme",
-            message
-        });
+        const newMsg = new Message({ pseudo: pseudo || "Anonyme", message });
         await newMsg.save();
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: "Erreur serveur" });
-    }
+    } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-app.get('/api/messages', async (req, res) => {
+app.get('/api/admin/messages', async (req, res) => {
     try {
         const messages = await Message.find().sort({ date: -1 });
         res.json(messages);
-    } catch (e) {
-        res.status(500).json({ error: "Erreur serveur" });
-    }
+    } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// Lancement du serveur
-app.listen(PORT, () => {
-    console.log(`Serveur prêt sur le port ${PORT}`);
+// Codes Promos
+app.post('/api/admin/create-promo', async (req, res) => {
+    try {
+        const { code, jetons } = req.body;
+        if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
+        await Promo.findOneAndUpdate({ code }, { jetons: Number(jetons) }, { upsert: true, new: true });
+        res.json({ success: true });
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
+
+app.post('/api/promo', async (req, res) => {
+    try {
+        const { code } = req.body;
+        const promo = await Promo.findOne({ code });
+        if (!promo) return res.json({ success: false, error: "Code promo invalide" });
+        res.json({ success: true, jetons: promo.jetons });
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+});
+
+app.listen(PORT, () => { console.log(`Serveur prêt sur le port ${PORT}`); });
