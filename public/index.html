@@ -26,6 +26,7 @@
         <div style="font-size: 20px;">📍</div>
     </div>
 
+    <!-- MODALE TUTORIEL + MODE INVITÉ -->
     <div class="broadcast-modal" id="modalTuto">
         <div class="broadcast-content">
             <h3>GÉOCACHING</h3>
@@ -36,6 +37,16 @@
             </p>
             <button onclick="lancerModeInvite()" style="background:#2ed573; border-color:#26af5f; width: 100%; margin-bottom: 10px;">Jouer en mode Géocaching (Invité)</button>
             <button onclick="fermerTuto()" style="background:#444; width: 100%;">Fermer</button>
+        </div>
+    </div>
+
+    <!-- MODALE PROBLÈME / SUPPORT -->
+    <div class="broadcast-modal" id="modalProbleme">
+        <div class="broadcast-content">
+            <h3>Signaler un problème</h3>
+            <textarea id="messageProbleme" placeholder="Décris ton problème..." style="width:90%; height:80px; background:#111; color:#fff; border:1px solid #444; padding:8px; margin-bottom:10px;"></textarea><br>
+            <button onclick="envoyerProbleme()">Envoyer</button>
+            <button onclick="fermerModalProbleme()" style="background:#444;">Annuler</button>
         </div>
     </div>
 
@@ -54,13 +65,23 @@
         <div id="gameScreen" style="display:none;">
             <p>Joueur : <b id="displayUser"></b> | Jetons : <span id="jetons" style="color:#00ffcc;">500</span> <button onclick="deconnexion()" style="font-size:0.6em; padding:3px 6px; margin-left:10px;">Quitter</button></p>
             
-            <!-- PANNEAU ADMIN POUR LES COORDONNÉES -->
-            <div id="adminCoordsPanel" style="display:none; margin: 15px 0; padding: 10px; border: 1px dashed #ffcc00; background: #221a00;">
-                <p style="color: #ffcc00; margin: 0 0 5px 0; font-size: 0.85em;">Panneau Admin : Modifier les coordonnées</p>
-                <input type="text" id="newCoordsInput" placeholder="Ex: N 45° ... W 73° ..." style="width: 75%;">
-                <button onclick="modifierCoordonneesAdmin()">Mettre à jour</button>
+            <!-- PANNEAU ADMIN COMPLET (COORDONNÉES + GESTION UTILISATEURS) -->
+            <div id="adminPanel" style="display:none; margin: 15px 0; padding: 15px; border: 1px dashed #ffcc00; background: #221a00; text-align: left;">
+                <p style="color: #ffcc00; margin: 0 0 10px 0; font-weight: bold; text-align: center;">--- PANNEAU ADMINISTRATEUR ---</p>
+                
+                <label style="font-size: 0.85em; color: #ffcc00;">Modifier les coordonnées de la géocache :</label><br>
+                <div style="display: flex; margin-bottom: 15px;">
+                    <input type="text" id="newCoordsInput" placeholder="Ex: N 45° ... W 73° ..." style="flex: 1; margin: 0 5px 0 0;">
+                    <button onclick="modifierCoordonneesAdmin()">Mettre à jour</button>
+                </div>
+
+                <label style="font-size: 0.85em; color: #ffcc00;">Gestion des joueurs et jetons :</label>
+                <div id="adminUsersList" style="max-height: 120px; overflow-y: auto; background: #111; padding: 5px; margin-top: 5px; font-size: 0.85em;">
+                    Chargement des utilisateurs...
+                </div>
             </div>
 
+            <!-- BOÎTE COORDONNÉES DÉBLOQUÉES -->
             <div id="coordsBox" style="display:none; margin: 15px 0; padding: 10px; border: 2px solid #2ed573; background: #002200;">
                 <p style="color: #2ed573; font-weight: bold; margin: 0;">📍 Coordonnées de la Géocache :</p>
                 <p id="coordsText" style="color: #fff; margin: 5px 0 0 0; font-weight: bold;"></p>
@@ -97,6 +118,21 @@
 
         function ouvrirTutoGeocaching() { document.getElementById("modalTuto").style.display = "flex"; }
         function fermerTuto() { document.getElementById("modalTuto").style.display = "none"; }
+        function ouvrirModalProbleme() { document.getElementById("modalProbleme").style.display = "flex"; }
+        function fermerModalProbleme() { document.getElementById("modalProbleme").style.display = "none"; }
+
+        async function envoyerProbleme() {
+            let msg = document.getElementById("messageProbleme").value;
+            if (!msg) return;
+            await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pseudo: currentUser || "Anonyme", message: msg })
+            });
+            alert("Problème envoyé avec succès !");
+            fermerModalProbleme();
+            document.getElementById("messageProbleme").value = "";
+        }
 
         async function chargerCoordonnees() {
             try {
@@ -125,6 +161,44 @@
             }
         }
 
+        async function chargerAdminUsers() {
+            try {
+                let res = await fetch('/api/admin/users');
+                let users = await res.json();
+                let html = "";
+                for (let pseudo in users) {
+                    html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span><b>${pseudo}</b> (${users[pseudo].jetons} jetons)</span>
+                        <div>
+                            <input type="number" id="edit_${pseudo}" value="${users[pseudo].jetons}" style="width:70px; padding:2px;">
+                            <button onclick="modifierJetonsAdmin('${pseudo}')" style="padding:2px 5px; font-size:0.8em;">Modifier</button>
+                        </div>
+                    </div>`;
+                }
+                document.getElementById("adminUsersList").innerHTML = html;
+            } catch(e) {
+                document.getElementById("adminUsersList").innerText = "Erreur de chargement.";
+            }
+        }
+
+        async function modifierJetonsAdmin(targetUser) {
+            let jetons = document.getElementById(`edit_${targetUser}`).value;
+            try {
+                let res = await fetch('/api/admin/set-jetons', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetUser, jetons })
+                });
+                let data = await res.json();
+                if (data.success) {
+                    alert(`Jetons de ${targetUser} mis à jour !`);
+                    chargerAdminUsers();
+                }
+            } catch(e) {
+                alert("Erreur");
+            }
+        }
+
         function lancerModeInvite() {
             modeInvite = true;
             currentUser = "Géocacheur";
@@ -137,7 +211,7 @@
             document.getElementById("displayUser").innerText = currentUser;
             document.getElementById("jetons").innerText = currentJetons;
             document.getElementById("coordsBox").style.display = "none";
-            document.getElementById("adminCoordsPanel").style.display = "none";
+            document.getElementById("adminPanel").style.display = "none";
             chargerCoordonnees();
         }
 
@@ -199,9 +273,10 @@
                     document.getElementById("jetons").innerText = currentJetons;
                     
                     if (isAdmin) {
-                        document.getElementById("adminCoordsPanel").style.display = "block";
+                        document.getElementById("adminPanel").style.display = "block";
+                        chargerAdminUsers();
                     } else {
-                        document.getElementById("adminCoordsPanel").style.display = "none";
+                        document.getElementById("adminPanel").style.display = "none";
                     }
 
                     await chargerCoordonnees();

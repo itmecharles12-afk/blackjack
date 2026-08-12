@@ -92,7 +92,28 @@ app.post('/api/update-jetons', async (req, res) => {
     } catch(e) { res.status(500).json({ error: "Erreur" }); }
 });
 
-// --- Gestion des coordonnées Géocaching ---
+// --- Routes Admin d'origine + Géocaching ---
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const users = await User.find();
+        let obj = {};
+        users.forEach(u => {
+            obj[u.pseudo] = { jetons: u.jetons, admin: u.admin };
+        });
+        res.json(obj);
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+});
+
+app.post('/api/admin/set-jetons', async (req, res) => {
+    try {
+        const { targetUser, jetons } = req.body;
+        await User.updateOne({ pseudo: targetUser }, { jetons: Number(jetons) });
+        const updated = await User.findOne({ pseudo: targetUser });
+        res.json({ success: true, jetons: updated.jetons });
+    } catch(e) { res.status(500).json({ error: "Erreur" }); }
+});
+
+// Gestion des coordonnées Géocaching
 let geocacheData = { coords: "N 45° 30.123 W 73° 35.456" };
 
 app.get('/api/geocache', (req, res) => {
@@ -110,7 +131,7 @@ app.post('/api/admin/geocache', async (req, res) => {
     }
 });
 
-// Variables globales temporaires pour les statuts et promos
+// Variables globales et autres routes
 let siteStatus = { maintenance: false };
 let broadcastData = { actif: false, texte: "", auteur: "" };
 let broadcastId = 1;
@@ -132,14 +153,6 @@ app.post('/api/admin/broadcast', (req, res) => {
 
 app.post('/api/admin/clear-broadcast', (req, res) => {
     broadcastData.actif = false;
-    res.json({ success: true });
-});
-
-app.post('/api/promo', (req, res) => {
-    res.json({ success: false, error: "Code promo invalide" });
-});
-
-app.post('/api/admin/create-promo', (req, res) => {
     res.json({ success: true });
 });
 
