@@ -42,6 +42,7 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model('Message', messageSchema);
 
+// Schéma promo simplifié (sans restriction de tableau)
 const promoSchema = new mongoose.Schema({
     code: { type: String, required: true, unique: true },
     jetons: { type: Number, required: true }
@@ -139,12 +140,12 @@ app.post('/api/admin/create-promo', async (req, res) => {
         const { code, jetons } = req.body;
         if (!code || !jetons) return res.status(400).json({ error: "Champs requis" });
         
-        // Nettoie et met en majuscules pour éviter les erreurs de saisie
         const cleanCode = code.trim().toUpperCase();
         
+        // Enregistre uniquement le code et les jetons (sans tableau utilisesPar)
         await Promo.findOneAndUpdate(
             { code: cleanCode }, 
-            { jetons: Number(jetons) }, 
+            { code: cleanCode, jetons: Number(jetons) }, 
             { upsert: true, new: true }
         );
         res.json({ success: true });
@@ -209,16 +210,16 @@ app.get('/api/admin/messages', async (req, res) => {
     } catch (e) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// --- ROUTE API PROMO CORRIGÉE ---
+// --- ROUTE API PROMO DÉFINITIVE (Réutilisable à l'infini) ---
 app.post('/api/promo', async (req, res) => {
     try {
         const { code, user } = req.body;
         if (!code || !user) return res.status(400).json({ error: "Champs requis" });
 
-        // Nettoie les espaces invisibles et met en majuscules pour correspondre exactement à la DB
         const cleanCode = code.trim().toUpperCase();
 
-        const promo = await Promo.findOne({ code: cleanCode });
+        // Recherche le code indépendamment des minuscules/majuscules dans la base
+        const promo = await Promo.findOne({ code: { $regex: new RegExp("^" + cleanCode + "$", "i") } });
         if (!promo) return res.json({ success: false, error: "Code promo invalide" });
 
         let dbUser = await User.findOneAndUpdate(
